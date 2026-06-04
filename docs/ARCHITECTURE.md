@@ -153,8 +153,10 @@ document positions directly.
 Clipboard operations use display text. Copy writes the selected display range as
 `text/plain`; cut writes the same text and records the deletion as a boundary
 history entry. Paste inserts plain text as a boundary entry and clears redo like
-any other new edit. In read-only mode, paste is always suppressed, cut behaves
-like copy without mutating the document, and the input proxy buffer is cleared.
+any other new edit. HTML-only paste is suppressed rather than delegated to the
+hidden browser textarea. In read-only mode, paste is always suppressed, cut
+behaves like copy without mutating the document, and the input proxy buffer is
+cleared.
 
 The browser validation harness runs against the demo app with Playwright. Install
 browser binaries with `npm run browser:install --workspace=@saturn9/scribeframe`,
