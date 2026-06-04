@@ -1,6 +1,5 @@
 import { createTransactionMetaKey, emptyTransactionMeta } from "./metadata";
 import type { EditorDocument, Selection } from "./model";
-import { documentToText } from "./model";
 import type { SyntaxSnapshot } from "./syntax";
 import type { DisplayChange, Transaction } from "./transaction";
 
@@ -17,6 +16,7 @@ export const historyEventMetaKey =
 export interface HistorySnapshot {
   readonly doc: EditorDocument;
   readonly selection: Selection;
+  readonly content: string;
   readonly syntax: SyntaxSnapshot;
 }
 
@@ -52,22 +52,19 @@ interface HistoryRecord extends HistoryEntry {
 }
 
 const fullDocumentChange = (
-  before: EditorDocument,
-  after: EditorDocument,
-): readonly DisplayChange[] => {
-  const beforeText = documentToText(before);
-  const afterText = documentToText(after);
-  return beforeText === afterText
+  before: HistorySnapshot,
+  after: HistorySnapshot,
+): readonly DisplayChange[] =>
+  before.content === after.content
     ? []
-    : [{ from: 0, to: beforeText.length, insert: afterText }];
-};
+    : [{ from: 0, to: before.content.length, insert: after.content }];
 
 const restoreTransaction = (
   before: HistorySnapshot,
   after: HistorySnapshot,
 ): Transaction => ({
   steps: [],
-  displayChanges: fullDocumentChange(before.doc, after.doc),
+  displayChanges: fullDocumentChange(before, after),
   docBefore: before.doc,
   docAfter: after.doc,
   selectionBefore: before.selection,

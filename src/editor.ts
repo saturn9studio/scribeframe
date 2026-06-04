@@ -52,7 +52,7 @@ import {
   type SyntaxProvider,
   type SyntaxSnapshot,
 } from "./syntax";
-import { Transaction, createTransaction } from "./transaction";
+import { Transaction, createTransaction, type DisplayChange } from "./transaction";
 
 export type EditorVirtualizationOptions = RendererVirtualizationOptions;
 export type EditorRevealOptions = RendererRevealOptions;
@@ -141,8 +141,19 @@ const assertUniquePluginIds = (
   }
 };
 
+const applyDisplayChanges = (
+  content: string,
+  changes: readonly DisplayChange[],
+): string =>
+  changes.reduce(
+    (current, change) =>
+      `${current.slice(0, change.from)}${change.insert}${current.slice(change.to)}`,
+    content,
+  );
+
 export class ModernEditor {
   private doc: EditorDocument;
+  private content: string;
   private selection: Selection;
   private syntax: SyntaxSnapshot;
   private readOnly: boolean;
@@ -277,7 +288,8 @@ export class ModernEditor {
     private readonly options: ModernEditorOptions = {},
   ) {
     this.rootAttributeSnapshot = captureRootAttributes(container);
-    this.doc = options.doc ?? documentFromText(options.content ?? "");
+    this.content = options.doc ? documentToText(options.doc) : (options.content ?? "");
+    this.doc = options.doc ?? documentFromText(this.content);
     this.selection = collapsedSelection(firstPosition());
     this.syntaxProvider = options.syntaxProvider ?? emptySyntaxProvider;
     this.syntax = this.syntaxProvider.create(this.doc);
@@ -325,7 +337,7 @@ export class ModernEditor {
   }
 
   getContent(): string {
-    return documentToText(this.doc);
+    return this.content;
   }
 
   getDocument(): EditorDocument {
@@ -381,6 +393,7 @@ export class ModernEditor {
   }
 
   setContent(content: string): void {
+    this.content = content;
     this.doc = documentFromText(content);
     this.selection = collapsedSelection(firstPosition());
     this.syntax = this.syntaxProvider.create(this.doc);
@@ -472,7 +485,11 @@ export class ModernEditor {
   dispatch(transaction: Transaction): void {
     const historyBefore = this.historySnapshot();
     const changesText = transaction.displayChanges.length > 0;
+    const contentAfter = changesText
+      ? applyDisplayChanges(this.content, transaction.displayChanges)
+      : this.content;
     this.doc = transaction.docAfter;
+    this.content = contentAfter;
     this.selection = clampSelection(this.doc, transaction.selectionAfter);
     if (changesText) {
       this.syntax = this.syntaxProvider.update(
@@ -604,10 +621,11 @@ export class ModernEditor {
   }
 
   private executeCommandByName(commandName: string): boolean {
-    const context = this.commandContext();
+    const snapshot = this.snapshot();
+    const context = this.commandContext(snapshot);
     const commands = [
       ...(this.options.commands ?? []),
-      ...this.slots.flatMap((slot) => slot.commands(this.snapshot())),
+      ...this.slots.flatMap((slot) => slot.commands(snapshot)),
     ];
 
     for (const command of commands) {
@@ -618,9 +636,11 @@ export class ModernEditor {
     return this.executeBuiltinCommand(commandName);
   }
 
-  private commandContext(): EditorCommandContext {
+  private commandContext(
+    snapshot: EditorStateSnapshot = this.snapshot(),
+  ): EditorCommandContext {
     return {
-      ...this.snapshot(),
+      ...snapshot,
       dispatch: (transaction) => this.dispatch(transaction),
       execute: (commandName) => this.executeCommandByName(commandName),
     };
@@ -1056,8 +1076,7 @@ export class ModernEditor {
     this.renderer.syncInputProxy(this.textarea);
   }
 
-  private collectOutput(): RenderOutput {
-    const snapshot = this.snapshot();
+  private collectOutput(snapshot: EditorStateSnapshot = this.snapshot()): RenderOutput {
     return this.slots.reduce<RenderOutput>(
       (combined, slot) => {
         const output = slot.output(snapshot);
@@ -1073,7 +1092,7 @@ export class ModernEditor {
 
   private normalize(): void {
     const snapshot = this.snapshot();
-    const output = this.collectOutput();
+    const output = this.collectOutput(snapshot);
     const steps = this.slots.flatMap((slot) =>
       slot.normalize(snapshot, output.instances),
     );
@@ -1090,6 +1109,9 @@ export class ModernEditor {
     });
     const transaction = builder.build();
     const changesText = transaction.displayChanges.length > 0;
+    if (changesText) {
+      this.content = applyDisplayChanges(this.content, transaction.displayChanges);
+    }
     this.doc = transaction.docAfter;
     this.selection = transaction.selectionAfter;
     if (changesText) {
@@ -1107,7 +1129,7 @@ export class ModernEditor {
     return {
       doc: this.doc,
       selection: this.selection,
-      content: this.getContent(),
+      content: this.content,
       readOnly: this.readOnly,
       syntax: this.syntax,
     };
@@ -1117,6 +1139,7 @@ export class ModernEditor {
     return {
       doc: this.doc,
       selection: this.selection,
+      content: this.content,
       syntax: this.syntax,
     };
   }
@@ -1126,6 +1149,7 @@ export class ModernEditor {
     transaction: Transaction,
   ): void {
     this.doc = snapshot.doc;
+    this.content = snapshot.content;
     this.selection = clampSelection(this.doc, snapshot.selection);
     this.syntax = snapshot.syntax;
     const state = this.snapshot();
