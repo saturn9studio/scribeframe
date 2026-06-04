@@ -19,6 +19,7 @@ import {
   Position,
   Range,
   Selection,
+  clampPosition,
   clampSelection,
   collapsedSelection,
   documentFromText,
@@ -171,7 +172,13 @@ export class ModernEditor {
     const position = this.renderer.positionAtPoint(event.clientX, event.clientY);
     if (!position) return;
 
-    if (event.detail >= 2) {
+    if (event.detail >= 3) {
+      this.selectParagraphAtPosition(position);
+      event.preventDefault();
+      return;
+    }
+
+    if (event.detail === 2) {
       this.selectWordAtPosition(position);
       event.preventDefault();
       return;
@@ -761,6 +768,25 @@ export class ModernEditor {
             ? { anchor: wordRange.from, head: wordRange.to }
             : collapsedSelection(position),
         )
+        .build(),
+    );
+    this.focus();
+  }
+
+  private selectParagraphAtPosition(position: Position): void {
+    this.preferredSelectionX = null;
+    this.handleSelectionDragEnd();
+    const current = clampPosition(this.doc, position);
+    const paragraph = this.doc.paragraphs[current.paragraph];
+    this.dispatch(
+      createTransaction(this.doc, this.selection)
+        .setSelection({
+          anchor: { paragraph: current.paragraph, offset: 0 },
+          head: {
+            paragraph: current.paragraph,
+            offset: paragraph?.text.length ?? 0,
+          },
+        })
         .build(),
     );
     this.focus();

@@ -1,9 +1,38 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const pasteShortcut = process.platform === "darwin" ? "Meta+V" : "Control+V";
 
 const documentOutput = "[data-role='document-output']";
 const focusButton = "[data-action='focus']";
+
+const pointForEditorText = async (
+  page: Page,
+  targetText: string,
+): Promise<{ readonly x: number; readonly y: number }> =>
+  page.evaluate((target) => {
+    const host = document.querySelector(".demo-editor-host");
+    if (!host) throw new Error("Editor host not found");
+
+    const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+    let node = walker.nextNode();
+    while (node) {
+      const text = node.textContent ?? "";
+      const from = text.indexOf(target);
+      if (from >= 0) {
+        const range = document.createRange();
+        range.setStart(node, from);
+        range.setEnd(node, from + target.length);
+        const rect = range.getBoundingClientRect();
+        return {
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2,
+        };
+      }
+      node = walker.nextNode();
+    }
+
+    throw new Error(`Target text not found: ${target}`);
+  }, targetText);
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
@@ -76,35 +105,25 @@ test("native clipboard paste inserts plain text", async ({
 });
 
 test("double-clicking a word selects it for replacement", async ({ page }) => {
-  const wordPoint = await page.evaluate(() => {
-    const host = document.querySelector(".demo-editor-host");
-    if (!host) throw new Error("Editor host not found");
-
-    const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
-    let node = walker.nextNode();
-    while (node) {
-      const text = node.textContent ?? "";
-      const from = text.indexOf("Markdown");
-      if (from >= 0) {
-        const range = document.createRange();
-        range.setStart(node, from);
-        range.setEnd(node, from + "Markdown".length);
-        const rect = range.getBoundingClientRect();
-        return {
-          x: rect.left + rect.width / 2,
-          y: rect.top + rect.height / 2,
-        };
-      }
-      node = walker.nextNode();
-    }
-
-    throw new Error("Target word not found");
-  });
+  const wordPoint = await pointForEditorText(page, "Markdown");
 
   await page.mouse.dblclick(wordPoint.x, wordPoint.y);
   await page.keyboard.type("plain text");
 
   await expect(page.locator(documentOutput)).toContainText(
     "This demo edits plain text text directly.",
+  );
+});
+
+test("triple-clicking text selects the paragraph for replacement", async ({
+  page,
+}) => {
+  const paragraphPoint = await pointForEditorText(page, "Markdown");
+
+  await page.mouse.click(paragraphPoint.x, paragraphPoint.y, { clickCount: 3 });
+  await page.keyboard.type("Replacement paragraph");
+
+  await expect(page.locator(documentOutput)).toContainText(
+    "# Scribeframe Demo\n\nReplacement paragraph\n\n~~~ts",
   );
 });

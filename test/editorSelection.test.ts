@@ -369,6 +369,42 @@ describe("editor cursor and selection behavior", () => {
     }
   });
 
+  it("selects the clicked paragraph on triple-click", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ModernEditor(container, {
+      content: "alpha beta gamma\nsecond paragraph",
+    });
+    const caretDocument = document as CaretPositionDocument;
+    const originalCaretPositionFromPoint = caretDocument.caretPositionFromPoint;
+    caretDocument.caretPositionFromPoint = () => ({
+      offsetNode: textNodeContaining(container, "alpha beta gamma"),
+      offset: 8,
+    });
+
+    try {
+      const event = new MouseEvent("mousedown", {
+        button: 0,
+        bubbles: true,
+        cancelable: true,
+        clientX: 8,
+        detail: 3,
+      });
+
+      container.dispatchEvent(event);
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(editor.getSelection()).toEqual({
+        anchor: { paragraph: 0, offset: 0 },
+        head: { paragraph: 0, offset: 16 },
+      });
+    } finally {
+      caretDocument.caretPositionFromPoint = originalCaretPositionFromPoint;
+      editor.destroy();
+      container.remove();
+    }
+  });
+
   it("extends selection during pointer drag", () => {
     const container = document.createElement("div");
     document.body.append(container);
