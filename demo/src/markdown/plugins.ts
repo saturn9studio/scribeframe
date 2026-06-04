@@ -12,7 +12,7 @@ import {
   type EditorDocument,
   type EditorPlugin,
   type Position,
-  PluginKey,
+  PluginId,
   type Range,
   positionFromOffset,
   type SyntaxSnapshot,
@@ -30,9 +30,9 @@ interface EmptyPluginState {
 
 const emptyState: EmptyPluginState = { version: 0 };
 
-export const markdownPluginKey = new PluginKey<EmptyPluginState>("markdown");
-export const codeBlockWidgetPluginKey =
-  new PluginKey<EmptyPluginState>("code-block-widgets");
+export const markdownPluginId = new PluginId<EmptyPluginState>("markdown");
+export const codeBlockWidgetPluginId =
+  new PluginId<EmptyPluginState>("code-block-widgets");
 
 const inline = (
   from: number,
@@ -94,7 +94,7 @@ const headingMarkerRange = (
 };
 
 export const markdownPlugin = (): EditorPlugin<EmptyPluginState> => ({
-  key: markdownPluginKey,
+  id: markdownPluginId,
   init: () => emptyState,
   apply: () => emptyState,
   decorations: ({ doc, syntax }) => {
@@ -239,7 +239,7 @@ class CodeBlockWidgetRenderer
 const codeBlockRenderer = new CodeBlockWidgetRenderer();
 
 export const codeBlockWidgetPlugin = (): EditorPlugin<EmptyPluginState> => ({
-  key: codeBlockWidgetPluginKey,
+  id: codeBlockWidgetPluginId,
   init: () => emptyState,
   apply: () => emptyState,
   instances: ({ doc, syntax }) =>

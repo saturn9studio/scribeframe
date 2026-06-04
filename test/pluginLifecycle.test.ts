@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ModernEditor,
-  PluginKey,
+  PluginId,
   createTransaction,
   type EditorPlugin,
 } from "../src";
@@ -14,9 +14,9 @@ describe("plugin lifecycle", () => {
       readonly content: string;
       readonly count: number;
     }> = [];
-    const key = new PluginKey<{ readonly count: number }>("destroy-once");
+    const id = new PluginId<{ readonly count: number }>("destroy-once");
     const plugin: EditorPlugin<{ readonly count: number }> = {
-      key,
+      id,
       init: () => ({ count: 0 }),
       apply: ({ state, transaction }) => ({
         count: transaction.displayChanges.length > 0 ? state.count + 1 : state.count,
@@ -47,10 +47,10 @@ describe("plugin lifecycle", () => {
     document.body.append(container);
     const removedDestroySnapshots: string[] = [];
     const newInitSnapshots: string[] = [];
-    const removedKey = new PluginKey<null>("removed");
-    const addedKey = new PluginKey<{ readonly initialContent: string }>("added");
+    const removedId = new PluginId<null>("removed");
+    const addedId = new PluginId<{ readonly initialContent: string }>("added");
     const removedPlugin: EditorPlugin<null> = {
-      key: removedKey,
+      id: removedId,
       init: () => null,
       apply: () => null,
       destroy: ({ content }) => {
@@ -58,7 +58,7 @@ describe("plugin lifecycle", () => {
       },
     };
     const addedPlugin: EditorPlugin<{ readonly initialContent: string }> = {
-      key: addedKey,
+      id: addedId,
       init: ({ content }) => {
         newInitSnapshots.push(content);
         return { initialContent: content };
@@ -79,8 +79,8 @@ describe("plugin lifecycle", () => {
 
     expect(removedDestroySnapshots).toEqual(["now start"]);
     expect(newInitSnapshots).toEqual(["now start"]);
-    expect(editor.getPluginState(removedKey)).toBeUndefined();
-    expect(editor.getPluginState(addedKey)).toEqual({
+    expect(editor.getPluginState(removedId)).toBeUndefined();
+    expect(editor.getPluginState(addedId)).toEqual({
       initialContent: "now start",
     });
 
@@ -91,11 +91,11 @@ describe("plugin lifecycle", () => {
   it("preserves state for plugin instances that remain installed", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const retainedKey = new PluginKey<{ readonly count: number }>("retained");
-    const removedKey = new PluginKey<null>("removed-after-reconfigure");
+    const retainedId = new PluginId<{ readonly count: number }>("retained");
+    const removedId = new PluginId<null>("removed-after-reconfigure");
     const counts = { retainedInit: 0, retainedDestroy: 0, removedDestroy: 0 };
     const retainedPlugin: EditorPlugin<{ readonly count: number }> = {
-      key: retainedKey,
+      id: retainedId,
       init: () => {
         counts.retainedInit += 1;
         return { count: 0 };
@@ -108,7 +108,7 @@ describe("plugin lifecycle", () => {
       },
     };
     const removedPlugin: EditorPlugin<null> = {
-      key: removedKey,
+      id: removedId,
       init: () => null,
       apply: () => null,
       destroy: () => {
@@ -132,7 +132,7 @@ describe("plugin lifecycle", () => {
       retainedDestroy: 0,
       removedDestroy: 1,
     });
-    expect(editor.getPluginState(retainedKey)).toEqual({ count: 1 });
+    expect(editor.getPluginState(retainedId)).toEqual({ count: 1 });
 
     editor.destroy();
     expect(counts.retainedDestroy).toBe(1);

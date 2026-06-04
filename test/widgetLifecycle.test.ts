@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   EditorPlugin,
   ModernEditor,
-  PluginKey,
+  PluginId,
   WidgetDecoration,
   WidgetRenderer,
   createTransaction,
@@ -37,7 +37,7 @@ const lifecyclePlugin = (counts: Counts): EditorPlugin<null> => {
   };
 
   return {
-    key: new PluginKey<null>("lifecycle"),
+    id: new PluginId<null>("lifecycle"),
     init: () => null,
     apply: () => null,
     widgets: ({ doc }): readonly WidgetDecoration[] =>

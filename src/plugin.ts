@@ -8,7 +8,7 @@ import type { EditorCommand, EditorKeyBinding } from "./commands";
 import { EditorDocument, Selection } from "./model";
 import { Step, Transaction } from "./transaction";
 
-export class PluginKey<S> {
+export class PluginId<S> {
   readonly state?: S;
 
   constructor(readonly name: string) {}
@@ -37,17 +37,17 @@ export interface PluginCommandContext<S> extends PluginOutputContext<S> {
   readonly dispatch: (transaction: Transaction) => void;
 }
 
-export interface PluginKeyDownContext<S> extends PluginCommandContext<S> {
+export interface PluginInputContext<S> extends PluginCommandContext<S> {
   readonly event: KeyboardEvent;
 }
 
 export interface EditorPluginProps<S> {
-  handleKeyDown?(context: PluginKeyDownContext<S>): boolean;
+  handleKeyDown?(context: PluginInputContext<S>): boolean;
   readonly keymap?: readonly EditorKeyBinding[];
 }
 
 export interface EditorPlugin<S> {
-  readonly key: PluginKey<S>;
+  readonly id: PluginId<S>;
   init(context: PluginInitContext): S;
   apply(context: PluginApplyContext<S>): S;
   instances?(context: PluginOutputContext<S>): readonly ExtensionInstance[];
@@ -61,7 +61,7 @@ export interface EditorPlugin<S> {
 
 export interface PluginSlot {
   readonly plugin: EditorPlugin<unknown>;
-  readonly key: PluginKey<unknown>;
+  readonly id: PluginId<unknown>;
   readonly getState: () => unknown;
   apply(transaction: Transaction, snapshot: EditorSnapshot): void;
   output(snapshot: EditorSnapshot): {
@@ -91,7 +91,7 @@ export const createPluginSlot = <S>(
 
   return {
     plugin: plugin as EditorPlugin<unknown>,
-    key: plugin.key as PluginKey<unknown>,
+    id: plugin.id as PluginId<unknown>,
     getState: () => pluginState,
     apply(transaction, snapshot) {
       pluginState = plugin.apply({
