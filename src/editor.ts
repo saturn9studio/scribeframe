@@ -220,6 +220,11 @@ export class ModernEditor {
     event.preventDefault();
   };
 
+  private readonly handleContainerFocus = (event: FocusEvent): void => {
+    if (this.destroyed || event.target !== this.container) return;
+    this.focus();
+  };
+
   private readonly handleTextareaKeyDown = (event: KeyboardEvent): void => {
     if (this.destroyed) return;
     this.handleKeyDown(event);
@@ -310,6 +315,7 @@ export class ModernEditor {
     this.textarea.setAttribute("autocorrect", "off");
     this.textarea.setAttribute("data-ms-editor", "false");
     this.textarea.setAttribute("writingsuggestions", "false");
+    this.textarea.tabIndex = -1;
     this.textarea.spellcheck = false;
     this.container.append(this.textarea);
     this.syncAccessibilityState();
@@ -526,6 +532,7 @@ export class ModernEditor {
 
   private bindEvents(): void {
     this.container.addEventListener("mousedown", this.handleContainerMouseDown);
+    this.container.addEventListener("focus", this.handleContainerFocus);
     this.textarea.addEventListener("keydown", this.handleTextareaKeyDown);
     this.textarea.addEventListener("beforeinput", this.handleTextareaBeforeInput);
     this.textarea.addEventListener("input", this.handleTextareaInput);
@@ -538,6 +545,7 @@ export class ModernEditor {
 
   private unbindEvents(): void {
     this.container.removeEventListener("mousedown", this.handleContainerMouseDown);
+    this.container.removeEventListener("focus", this.handleContainerFocus);
     this.textarea.removeEventListener("keydown", this.handleTextareaKeyDown);
     this.textarea.removeEventListener(
       "beforeinput",

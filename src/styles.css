@@ -28,6 +28,11 @@
   z-index: 1;
 }
 
+.s9-editor-root:focus-within .s9-editor-surface {
+  outline: 2px solid #8b683e;
+  outline-offset: -2px;
+}
+
 .s9-paragraph {
   color: #241f1a;
   font: 16px/1.6 Georgia, "Times New Roman", serif;
@@ -57,7 +62,6 @@
 }
 
 .s9-caret {
-  animation: s9-caret-blink 1s steps(2, start) infinite;
   background: #5f452b;
   pointer-events: none;
   position: absolute;
@@ -86,6 +90,27 @@
   top: 0;
   width: 2px;
   z-index: 4;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .s9-caret {
+    animation: s9-caret-blink 1s steps(2, start) infinite;
+  }
+}
+
+@media (forced-colors: active) {
+  .s9-editor-root:focus-within .s9-editor-surface {
+    outline-color: Highlight;
+  }
+
+  .s9-selection-rect {
+    background: transparent;
+    border: 1px solid Highlight;
+  }
+
+  .s9-caret {
+    background: CanvasText;
+  }
 }
 
 @keyframes s9-caret-blink {
