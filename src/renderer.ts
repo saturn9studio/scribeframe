@@ -432,10 +432,10 @@ export class Renderer {
     const rect = this.measurePosition(position);
     const x = preferredX ?? rect?.left ?? 0;
     if (rect) {
-      const yStep = Math.max(1, rect.height / 2);
+      const yStep = this.verticalLineStep(position, rect);
       const target = this.positionAtPoint(
         x,
-        direction > 0 ? rect.bottom + yStep : rect.top - yStep,
+        rect.top + rect.height / 2 + direction * yStep,
       );
       if (target && !isSamePosition(target, position)) {
         return { position: target, preferredX: x };
@@ -1017,6 +1017,17 @@ export class Renderer {
         doc.paragraphs[paragraphIndex]?.text.length ?? 0,
       ),
     };
+  }
+
+  private verticalLineStep(position: Position, rect: DOMRect): number {
+    const paragraphElement = this.paragraphElement(position.paragraph);
+    const lineHeight = paragraphElement
+      ? Number.parseFloat(getComputedStyle(paragraphElement).lineHeight)
+      : Number.NaN;
+
+    return Number.isFinite(lineHeight) && lineHeight > 0
+      ? lineHeight
+      : Math.max(1, rect.height);
   }
 
   private caretFromPoint(

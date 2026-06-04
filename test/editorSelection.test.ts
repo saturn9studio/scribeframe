@@ -12,6 +12,19 @@ type CaretPositionDocument = Document & {
   ) => { offsetNode: Node; offset: number } | null;
 };
 
+const rect = (left: number, top: number, height: number): DOMRect =>
+  ({
+    left,
+    top,
+    width: 0,
+    height,
+    right: left,
+    bottom: top + height,
+    x: left,
+    y: top,
+    toJSON: () => ({}),
+  }) as DOMRect;
+
 const inputFor = (container: HTMLElement): HTMLTextAreaElement => {
   const input = container.querySelector<HTMLTextAreaElement>(".s9-input-proxy");
   if (!input) throw new Error("Input proxy not found");
@@ -112,6 +125,89 @@ describe("editor cursor and selection behavior", () => {
 
     editor.destroy();
     container.remove();
+  });
+
+  it("targets the center of the adjacent visual line for vertical movement", () => {
+    const container = document.createElement("div");
+    container.style.lineHeight = "20px";
+    document.body.append(container);
+    const editor = new ModernEditor(container, { content: "abcdef" });
+    const caretDocument = document as CaretPositionDocument;
+    const originalCaretPositionFromPoint = caretDocument.caretPositionFromPoint;
+    const originalRangeRect = Range.prototype.getBoundingClientRect;
+    Range.prototype.getBoundingClientRect = function () {
+      return rect(this.startOffset * 10, 40, 10);
+    };
+    vi.spyOn(window, "getComputedStyle").mockReturnValue({
+      lineHeight: "20px",
+    } as CSSStyleDeclaration);
+    caretDocument.caretPositionFromPoint = (_x, y) => ({
+      offsetNode: textNodeContaining(container, "abcdef"),
+      offset: y < 30 ? 1 : 0,
+    });
+
+    try {
+      setSelection(editor, { paragraph: 0, offset: 3 }, { paragraph: 0, offset: 3 });
+      keyDown(container, "ArrowUp");
+
+      expect(editor.getSelection()).toEqual({
+        anchor: { paragraph: 0, offset: 1 },
+        head: { paragraph: 0, offset: 1 },
+      });
+    } finally {
+      caretDocument.caretPositionFromPoint = originalCaretPositionFromPoint;
+      if (originalRangeRect) {
+        Range.prototype.getBoundingClientRect = originalRangeRect;
+      } else {
+        delete (Range.prototype as Partial<Range>).getBoundingClientRect;
+      }
+      editor.destroy();
+      container.remove();
+    }
+  });
+
+  it("clears the preferred vertical column when selecting a range explicitly", () => {
+    const container = document.createElement("div");
+    container.style.lineHeight = "20px";
+    document.body.append(container);
+    const editor = new ModernEditor(container, { content: "abcdef" });
+    const caretDocument = document as CaretPositionDocument;
+    const originalCaretPositionFromPoint = caretDocument.caretPositionFromPoint;
+    const originalRangeRect = Range.prototype.getBoundingClientRect;
+    Range.prototype.getBoundingClientRect = function () {
+      return rect(this.startOffset === 4 ? 10 : 100, 40, 10);
+    };
+    vi.spyOn(window, "getComputedStyle").mockReturnValue({
+      lineHeight: "20px",
+    } as CSSStyleDeclaration);
+    caretDocument.caretPositionFromPoint = (x) => ({
+      offsetNode: textNodeContaining(container, "abcdef"),
+      offset: x > 50 ? 5 : 1,
+    });
+
+    try {
+      setSelection(editor, { paragraph: 0, offset: 2 }, { paragraph: 0, offset: 2 });
+      keyDown(container, "ArrowUp");
+      editor.selectRange({
+        from: { paragraph: 0, offset: 4 },
+        to: { paragraph: 0, offset: 4 },
+      });
+      keyDown(container, "ArrowUp");
+
+      expect(editor.getSelection()).toEqual({
+        anchor: { paragraph: 0, offset: 1 },
+        head: { paragraph: 0, offset: 1 },
+      });
+    } finally {
+      caretDocument.caretPositionFromPoint = originalCaretPositionFromPoint;
+      if (originalRangeRect) {
+        Range.prototype.getBoundingClientRect = originalRangeRect;
+      } else {
+        delete (Range.prototype as Partial<Range>).getBoundingClientRect;
+      }
+      editor.destroy();
+      container.remove();
+    }
   });
 
   it("collapses range selections to movement edges without Shift", () => {

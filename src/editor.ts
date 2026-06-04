@@ -383,6 +383,7 @@ export class ModernEditor {
 
   focus(position?: Position): void {
     if (position) {
+      this.preferredSelectionX = null;
       this.dispatch(
         createTransaction(this.doc, this.selection)
           .setSelection(collapsedSelection(position))
@@ -409,6 +410,7 @@ export class ModernEditor {
   }
 
   selectRange(range: Range, options: EditorSelectRangeOptions = {}): void {
+    this.preferredSelectionX = null;
     this.dispatch(
       createTransaction(this.doc, this.selection)
         .setSelection({ anchor: range.from, head: range.to })
