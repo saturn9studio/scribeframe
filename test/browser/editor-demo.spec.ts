@@ -1,0 +1,76 @@
+import { expect, test } from "@playwright/test";
+
+const pasteShortcut = process.platform === "darwin" ? "Meta+V" : "Control+V";
+
+const documentOutput = "[data-role='document-output']";
+const focusButton = "[data-action='focus']";
+
+test.beforeEach(async ({ page }) => {
+  await page.goto("/");
+});
+
+test("typing, undo, and redo run through real keyboard events", async ({ page }) => {
+  await page.locator(focusButton).click();
+
+  await page.keyboard.type("Browser ");
+
+  await expect(page.locator(documentOutput)).toContainText(
+    "Browser # Scribeframe Demo",
+  );
+
+  await page.keyboard.press("Control+Z");
+  await expect(page.locator(documentOutput)).not.toContainText(
+    "Browser # Scribeframe Demo",
+  );
+
+  await page.keyboard.press("Control+Y");
+  await expect(page.locator(documentOutput)).toContainText(
+    "Browser # Scribeframe Demo",
+  );
+});
+
+test("read-only mode suppresses real keyboard input", async ({ page }) => {
+  const documentText = page.locator(documentOutput);
+  const initialContent = await documentText.textContent();
+
+  await page.locator("[data-action='toggle-readonly']").click();
+  await expect(page.locator("[role='textbox']")).toHaveAttribute(
+    "aria-readonly",
+    "true",
+  );
+
+  await page.keyboard.type("SHOULD_NOT_APPEAR");
+
+  await expect(documentText).toHaveText(initialContent ?? "");
+});
+
+test("code block widget edits update document text", async ({ page }) => {
+  const code = page.locator(".s9-code-widget-textarea");
+
+  await code.fill('console.log("from browser widget");');
+
+  await expect(page.locator(documentOutput)).toContainText(
+    'console.log("from browser widget");',
+  );
+});
+
+test("native clipboard paste inserts plain text", async ({
+  browserName,
+  context,
+  page,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Browser clipboard permissions are only reliable in headless Chromium here.",
+  );
+
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.evaluate(() => navigator.clipboard.writeText("Clipboard "));
+  await page.locator(focusButton).click();
+
+  await page.keyboard.press(pasteShortcut);
+
+  await expect(page.locator(documentOutput)).toContainText(
+    "Clipboard # Scribeframe Demo",
+  );
+});

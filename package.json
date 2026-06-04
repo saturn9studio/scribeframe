@@ -1,0 +1,44 @@
+{
+  "name": "@saturn9/scribeframe",
+  "version": "0.1.0",
+  "description": "A format-agnostic text editor engine with owned rendering and widget lifecycle",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/saturn9studio/scribeframe.git"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./styles.css": "./src/styles.css",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src/styles.css"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "npm run clean && tsc -p tsconfig.json",
+    "test": "vitest run",
+    "browser:install": "playwright install chromium webkit",
+    "browser:test": "playwright test -c playwright.config.ts",
+    "demo": "vite --config demo/vite.config.ts",
+    "demo:typecheck": "tsc -p demo/tsconfig.json --noEmit",
+    "demo:build": "vite build --config demo/vite.config.ts"
+  },
+  "author": "Saturn9 LLC",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "@saturn9/markoffset": "0.1.0",
+    "jsdom": "^25.0.0",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.0",
+    "vitest": "^2.0.0"
+  }
+}

@@ -1,0 +1,99 @@
+.s9-editor-root {
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 100%;
+  overflow-y: auto;
+  position: relative;
+}
+
+.s9-editor-root *,
+.s9-editor-root *::before,
+.s9-editor-root *::after {
+  box-sizing: border-box;
+}
+
+.s9-editor {
+  min-height: 100%;
+  position: relative;
+}
+
+.s9-editor-surface {
+  min-height: 100%;
+  outline: none;
+  padding: 28px 36px 64px;
+  position: relative;
+  user-select: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+  z-index: 1;
+}
+
+.s9-paragraph {
+  color: #241f1a;
+  font: 16px/1.6 Georgia, "Times New Roman", serif;
+  margin: 0 0 0.75em;
+  min-height: 1.6em;
+}
+
+.s9-covered-by-widget {
+  display: none;
+}
+
+.s9-virtual-spacer {
+  pointer-events: none;
+}
+
+.s9-selection-layer {
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 2;
+}
+
+.s9-selection-rect {
+  background: rgba(139, 104, 62, 0.22);
+  border-radius: 2px;
+  position: absolute;
+}
+
+.s9-caret {
+  animation: s9-caret-blink 1s steps(2, start) infinite;
+  background: #5f452b;
+  pointer-events: none;
+  position: absolute;
+  width: 2px;
+  z-index: 3;
+}
+
+.s9-caret-hidden {
+  display: none;
+}
+
+.s9-input-proxy {
+  background: transparent;
+  border: 0;
+  caret-color: transparent;
+  color: transparent;
+  height: 20px;
+  left: 0;
+  opacity: 0;
+  outline: none;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  resize: none;
+  top: 0;
+  width: 2px;
+  z-index: 4;
+}
+
+@keyframes s9-caret-blink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  46%,
+  100% {
+    opacity: 0;
+  }
+}

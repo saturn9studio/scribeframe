@@ -1,0 +1,86 @@
+import { describe, expect, it } from "vitest";
+import {
+  collapsedSelection,
+  createTransaction,
+  documentFromText,
+  documentToText,
+  firstPosition,
+  createTransactionMetaKey,
+} from "../src";
+
+describe("transactions", () => {
+  it("replaces text inside a paragraph immutably", () => {
+    const doc = documentFromText("hello world");
+    const selection = collapsedSelection({ paragraph: 0, offset: 5 });
+
+    const tr = createTransaction(doc, selection)
+      .replaceRange(
+        { paragraph: 0, offset: 6 },
+        { paragraph: 0, offset: 11 },
+        "engine",
+      )
+      .build();
+
+    expect(documentToText(doc)).toBe("hello world");
+    expect(documentToText(tr.docAfter)).toBe("hello engine");
+    expect(tr.selectionAfter.head).toEqual({ paragraph: 0, offset: 12 });
+  });
+
+  it("splits and rejoins paragraphs with range replacement", () => {
+    const doc = documentFromText("one\ntwo\nthree");
+    const selection = collapsedSelection(firstPosition());
+
+    const tr = createTransaction(doc, selection)
+      .replaceRange(
+        { paragraph: 0, offset: 1 },
+        { paragraph: 2, offset: 2 },
+        "X\nY",
+      )
+      .build();
+
+    expect(documentToText(tr.docAfter)).toBe("oX\nYree");
+    expect(tr.selectionAfter.head).toEqual({ paragraph: 1, offset: 1 });
+  });
+
+  it("stores typed metadata without exposing an untyped map", () => {
+    const key = createTransactionMetaKey<{ readonly reason: string }>("reason");
+    const doc = documentFromText("");
+    const selection = collapsedSelection(firstPosition());
+
+    const tr = createTransaction(doc, selection)
+      .setMeta(key, { reason: "demo" })
+      .build();
+
+    expect(tr.meta.get(key)).toEqual({ reason: "demo" });
+  });
+
+  it("records display-space changes for text replacements", () => {
+    const doc = documentFromText("one\ntwo");
+    const selection = collapsedSelection(firstPosition());
+
+    const tr = createTransaction(doc, selection)
+      .replaceRange(
+        { paragraph: 0, offset: 1 },
+        { paragraph: 1, offset: 1 },
+        "X\nY",
+      )
+      .setSelection({ anchor: firstPosition(), head: firstPosition() })
+      .build();
+
+    expect(tr.displayChanges).toEqual([{ from: 1, to: 5, insert: "X\nY" }]);
+  });
+
+  it("does not record display changes for selection updates", () => {
+    const doc = documentFromText("text");
+    const selection = collapsedSelection(firstPosition());
+
+    const tr = createTransaction(doc, selection)
+      .setSelection({
+        anchor: { paragraph: 0, offset: 1 },
+        head: { paragraph: 0, offset: 1 },
+      })
+      .build();
+
+    expect(tr.displayChanges).toEqual([]);
+  });
+});
