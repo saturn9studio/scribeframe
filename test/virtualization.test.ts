@@ -203,6 +203,37 @@ describe("renderer virtualization and scrolling", () => {
     container.remove();
   });
 
+  it("reveals the full selected span when the head is already visible", () => {
+    const container = document.createElement("div");
+    setViewport(container, 100);
+    document.body.append(container);
+
+    const editor = new ModernEditor(container, {
+      content: lines(30),
+      syntaxProvider: markdownSyntaxProvider,
+      plugins: [markdownPlugin()],
+      virtualization: { estimateParagraphHeight: 20, overscan: 0 },
+    });
+
+    container.scrollTop = 100;
+    container.dispatchEvent(new Event("scroll"));
+
+    editor.selectRange(
+      {
+        from: { paragraph: 3, offset: 0 },
+        to: { paragraph: 5, offset: 4 },
+      },
+      { reveal: true },
+    );
+
+    expect(container.scrollTop).toBe(60);
+    expect(renderedParagraphs(container)).toContain(3);
+    expect(renderedParagraphs(container)).toContain(5);
+
+    editor.destroy();
+    container.remove();
+  });
+
   it("mounts and destroys viewport-limited widgets as they enter and leave", () => {
     const container = document.createElement("div");
     setViewport(container, 40);

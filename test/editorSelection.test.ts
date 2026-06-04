@@ -10,6 +10,7 @@ type CaretPositionDocument = Document & {
     x: number,
     y: number,
   ) => { offsetNode: Node; offset: number } | null;
+  caretRangeFromPoint?: (x: number, y: number) => Range | null;
 };
 
 const rect = (left: number, top: number, height: number): DOMRect =>
@@ -465,6 +466,72 @@ describe("editor cursor and selection behavior", () => {
       });
     } finally {
       caretDocument.caretPositionFromPoint = originalCaretPositionFromPoint;
+      editor.destroy();
+      container.remove();
+    }
+  });
+
+  it("falls back to the nearest paragraph edge when point caret APIs miss text", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ModernEditor(container, {
+      content: "alpha beta",
+    });
+    const paragraph = container.querySelector<HTMLElement>(".s9-paragraph");
+    if (!paragraph) throw new Error("Paragraph not found");
+
+    const caretDocument = document as CaretPositionDocument;
+    const originalCaretPositionFromPoint = caretDocument.caretPositionFromPoint;
+    const originalCaretRangeFromPoint = caretDocument.caretRangeFromPoint;
+    const originalElementFromPoint = document.elementFromPoint;
+
+    caretDocument.caretPositionFromPoint = () => null;
+    caretDocument.caretRangeFromPoint = () => null;
+    paragraph.getBoundingClientRect = () => box(10, 0, 100, 20);
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => paragraph,
+    });
+
+    try {
+      container.dispatchEvent(
+        new MouseEvent("mousedown", {
+          button: 0,
+          bubbles: true,
+          clientX: 20,
+          clientY: 5,
+        }),
+      );
+      document.dispatchEvent(
+        new MouseEvent("mouseup", { button: 0, bubbles: true }),
+      );
+      expect(editor.getSelection()).toEqual({
+        anchor: { paragraph: 0, offset: 0 },
+        head: { paragraph: 0, offset: 0 },
+      });
+
+      container.dispatchEvent(
+        new MouseEvent("mousedown", {
+          button: 0,
+          bubbles: true,
+          clientX: 100,
+          clientY: 5,
+        }),
+      );
+      document.dispatchEvent(
+        new MouseEvent("mouseup", { button: 0, bubbles: true }),
+      );
+      expect(editor.getSelection()).toEqual({
+        anchor: { paragraph: 0, offset: 10 },
+        head: { paragraph: 0, offset: 10 },
+      });
+    } finally {
+      caretDocument.caretPositionFromPoint = originalCaretPositionFromPoint;
+      caretDocument.caretRangeFromPoint = originalCaretRangeFromPoint;
+      Object.defineProperty(document, "elementFromPoint", {
+        configurable: true,
+        value: originalElementFromPoint,
+      });
       editor.destroy();
       container.remove();
     }

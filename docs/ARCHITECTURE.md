@@ -113,10 +113,10 @@ state after unmount.
 ## Scrolling and virtualization
 
 The renderer owns explicit scrolling APIs. Host apps can ask the editor to
-reveal a document position, reveal the current selection, select a range with
-optional reveal behavior, or scroll to a document fraction for minimap-style
-tools. Geometry is expressed in terms of explicit engine `Position` and `Range`
-values.
+reveal a document position, reveal the current selected span, select a range
+with optional reveal behavior, or scroll to a document fraction for
+minimap-style tools. Geometry is expressed in terms of explicit engine
+`Position` and `Range` values.
 
 Rendering is virtualized when the scroll container has a measurable viewport.
 The renderer keeps a visible paragraph window with configurable overscan and

@@ -416,7 +416,18 @@ export class Renderer {
   }
 
   revealSelection(selection: Selection, options: RendererRevealOptions = {}): void {
-    this.revealPosition(selection.head, options);
+    const input = this.currentInput;
+    if (!input) return;
+
+    const range = normalizeRange({
+      anchor: clampPosition(input.doc, selection.anchor),
+      head: clampPosition(input.doc, selection.head),
+    });
+    const top = this.paragraphTop(range.from.paragraph);
+    const bottom =
+      this.paragraphTop(range.to.paragraph) +
+      this.paragraphHeight(range.to.paragraph);
+    this.revealVerticalRange(top, bottom, options);
   }
 
   positionVerticallyFrom(
@@ -797,7 +808,7 @@ export class Renderer {
       if (widget.placement !== "block") return false;
       const widgetFrom = absoluteOffset(doc, widget.range.from);
       const widgetTo = absoluteOffset(doc, widget.range.to);
-      return range.to >= widgetFrom && range.from <= widgetTo;
+      return range.to > widgetFrom && range.from < widgetTo;
     });
   }
 
@@ -977,7 +988,12 @@ export class Renderer {
       (item) =>
         item.paragraph === clamped.paragraph &&
         item.from <= clamped.offset &&
-        item.to >= clamped.offset,
+        clamped.offset < item.to,
+    ) ?? this.segments.find(
+      (item) =>
+        item.paragraph === clamped.paragraph &&
+        item.from < clamped.offset &&
+        clamped.offset <= item.to,
     );
 
     if (segment) {
@@ -1095,9 +1111,13 @@ export class Renderer {
     const paragraph = input.doc.paragraphs[paragraphIndex];
     if (!paragraph) return null;
 
+    const rect = paragraphElement.getBoundingClientRect();
+    const offset =
+      x <= rect.left + rect.width / 2 ? 0 : paragraph.text.length;
+
     return collapsedSelection({
       paragraph: paragraphIndex,
-      offset: paragraph.text.length,
+      offset,
     }).head;
   }
 
