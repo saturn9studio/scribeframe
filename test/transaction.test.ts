@@ -54,6 +54,23 @@ describe("transactions", () => {
     expect(tr.meta.get(key)).toEqual({ reason: "demo" });
   });
 
+  it("keeps same-name metadata keys isolated by key identity", () => {
+    const firstKey =
+      createTransactionMetaKey<{ readonly value: string }>("shared");
+    const secondKey =
+      createTransactionMetaKey<{ readonly value: number }>("shared");
+    const doc = documentFromText("");
+    const selection = collapsedSelection(firstPosition());
+
+    const tr = createTransaction(doc, selection)
+      .setMeta(firstKey, { value: "first" })
+      .setMeta(secondKey, { value: 2 })
+      .build();
+
+    expect(tr.meta.get(firstKey)).toEqual({ value: "first" });
+    expect(tr.meta.get(secondKey)).toEqual({ value: 2 });
+  });
+
   it("records display-space changes for text replacements", () => {
     const doc = documentFromText("one\ntwo");
     const selection = collapsedSelection(firstPosition());

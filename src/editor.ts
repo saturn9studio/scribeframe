@@ -125,6 +125,22 @@ const restoreRootAttributes = (
   });
 };
 
+const assertUniquePluginIds = (
+  plugins: readonly EditorPlugin<unknown>[] = [],
+): void => {
+  const seen = new Set<PluginId<unknown>>();
+  const duplicate = plugins.find((plugin) => {
+    const id = plugin.id as PluginId<unknown>;
+    if (seen.has(id)) return true;
+    seen.add(id);
+    return false;
+  });
+
+  if (duplicate) {
+    throw new Error(`Duplicate plugin id: ${duplicate.id.name}`);
+  }
+};
+
 export class ModernEditor {
   private doc: EditorDocument;
   private selection: Selection;
@@ -266,6 +282,7 @@ export class ModernEditor {
       mergeWindowMs: options.historyBatchDelay,
     });
     const initialSnapshot = this.snapshot();
+    assertUniquePluginIds(options.plugins);
     this.slots =
       options.plugins?.map((plugin) =>
         createPluginSlot(plugin, initialSnapshot),
@@ -322,7 +339,7 @@ export class ModernEditor {
   }
 
   getPluginState<S>(id: PluginId<S>): S | undefined {
-    return this.slots.find((slot) => slot.id.name === id.name)?.getState() as
+    return this.slots.find((slot) => slot.id === id)?.getState() as
       | S
       | undefined;
   }
@@ -380,14 +397,18 @@ export class ModernEditor {
   setPlugins(plugins: readonly EditorPlugin<unknown>[]): void {
     if (this.destroyed) return;
 
+    assertUniquePluginIds(plugins);
     const snapshot = this.snapshot();
     const retained = new Set<PluginSlot>();
     const nextSlots = plugins.map((plugin) => {
       const existing = this.slots.find(
-        (slot) => slot.plugin === plugin && !retained.has(slot),
+        (slot) => slot.id === plugin.id && !retained.has(slot),
       );
       if (existing) {
         retained.add(existing);
+        if (existing.plugin !== plugin) {
+          existing.reconfigure(plugin);
+        }
         return existing;
       }
       return createPluginSlot(plugin, snapshot);

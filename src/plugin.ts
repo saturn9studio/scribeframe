@@ -63,6 +63,7 @@ export interface PluginSlot {
   readonly plugin: EditorPlugin<unknown>;
   readonly id: PluginId<unknown>;
   readonly getState: () => unknown;
+  reconfigure(plugin: EditorPlugin<unknown>): void;
   apply(transaction: Transaction, snapshot: EditorSnapshot): void;
   output(snapshot: EditorSnapshot): {
     readonly instances: readonly ExtensionInstance[];
@@ -87,14 +88,20 @@ export const createPluginSlot = <S>(
   plugin: EditorPlugin<S>,
   snapshot: EditorSnapshot,
 ): PluginSlot => {
+  let currentPlugin = plugin;
   let pluginState = plugin.init(snapshot);
 
   return {
-    plugin: plugin as EditorPlugin<unknown>,
-    id: plugin.id as PluginId<unknown>,
+    get plugin() {
+      return currentPlugin as EditorPlugin<unknown>;
+    },
+    id: currentPlugin.id as PluginId<unknown>,
     getState: () => pluginState,
+    reconfigure(nextPlugin) {
+      currentPlugin = nextPlugin as EditorPlugin<S>;
+    },
     apply(transaction, snapshot) {
-      pluginState = plugin.apply({
+      pluginState = currentPlugin.apply({
         ...snapshot,
         state: pluginState,
         previousDoc: transaction.docBefore,
@@ -105,25 +112,28 @@ export const createPluginSlot = <S>(
     output(snapshot) {
       const context = { ...snapshot, state: pluginState };
       return {
-        instances: plugin.instances?.(context) ?? [],
-        decorations: plugin.decorations?.(context) ?? [],
-        widgets: plugin.widgets?.(context) ?? [],
+        instances: currentPlugin.instances?.(context) ?? [],
+        decorations: currentPlugin.decorations?.(context) ?? [],
+        widgets: currentPlugin.widgets?.(context) ?? [],
       };
     },
     normalize(snapshot, instances) {
-      return plugin.normalize?.({ ...snapshot, state: pluginState, instances }) ?? [];
+      return (
+        currentPlugin.normalize?.({ ...snapshot, state: pluginState, instances }) ??
+        []
+      );
     },
     commands(snapshot) {
-      return plugin.commands?.({ ...snapshot, state: pluginState }) ?? [];
+      return currentPlugin.commands?.({ ...snapshot, state: pluginState }) ?? [];
     },
     keymap() {
-      return plugin.props?.keymap ?? [];
+      return currentPlugin.props?.keymap ?? [];
     },
     destroy(snapshot) {
-      plugin.destroy?.({ ...snapshot, state: pluginState });
+      currentPlugin.destroy?.({ ...snapshot, state: pluginState });
     },
     handleKeyDown(snapshot, event, dispatch) {
-      return plugin.props?.handleKeyDown?.({
+      return currentPlugin.props?.handleKeyDown?.({
         ...snapshot,
         state: pluginState,
         event,
