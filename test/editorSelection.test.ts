@@ -317,6 +317,58 @@ describe("editor cursor and selection behavior", () => {
     container.remove();
   });
 
+  it("selects the clicked word on double-click without starting a drag", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ModernEditor(container, {
+      content: "alpha beta gamma",
+    });
+    const caretDocument = document as CaretPositionDocument;
+    const originalCaretPositionFromPoint = caretDocument.caretPositionFromPoint;
+    caretDocument.caretPositionFromPoint = (x) => ({
+      offsetNode: textNodeContaining(container, "alpha beta gamma"),
+      offset: Math.max(0, Math.min(16, Math.round(x))),
+    });
+
+    try {
+      container.dispatchEvent(
+        new MouseEvent("mousedown", {
+          button: 0,
+          bubbles: true,
+          cancelable: true,
+          clientX: 8,
+        }),
+      );
+      document.dispatchEvent(
+        new MouseEvent("mouseup", { button: 0, bubbles: true }),
+      );
+
+      const event = new MouseEvent("dblclick", {
+        button: 0,
+        bubbles: true,
+        cancelable: true,
+        clientX: 8,
+      });
+      container.dispatchEvent(event);
+      document.dispatchEvent(
+        new MouseEvent("mousemove", { button: 0, clientX: 1, bubbles: true }),
+      );
+      document.dispatchEvent(
+        new MouseEvent("mouseup", { button: 0, bubbles: true }),
+      );
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(editor.getSelection()).toEqual({
+        anchor: { paragraph: 0, offset: 6 },
+        head: { paragraph: 0, offset: 10 },
+      });
+    } finally {
+      caretDocument.caretPositionFromPoint = originalCaretPositionFromPoint;
+      editor.destroy();
+      container.remove();
+    }
+  });
+
   it("extends selection during pointer drag", () => {
     const container = document.createElement("div");
     document.body.append(container);

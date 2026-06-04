@@ -32,6 +32,7 @@ import {
   previousWordPosition,
   selectionIsCollapsed,
   textInRange,
+  wordRangeAtPosition,
 } from "./model";
 import {
   EditorPlugin,
@@ -170,6 +171,12 @@ export class ModernEditor {
     const position = this.renderer.positionAtPoint(event.clientX, event.clientY);
     if (!position) return;
 
+    if (event.detail >= 2) {
+      this.selectWordAtPosition(position);
+      event.preventDefault();
+      return;
+    }
+
     const anchor = event.shiftKey ? this.selection.anchor : position;
     this.preferredSelectionX = null;
     this.selectionDragAnchor = anchor;
@@ -185,6 +192,18 @@ export class ModernEditor {
         .build(),
     );
     this.focus();
+    event.preventDefault();
+  };
+
+  private readonly handleContainerDoubleClick = (event: MouseEvent): void => {
+    if (this.destroyed) return;
+    if (event.button !== 0) return;
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest(".s9-widget")) return;
+    const position = this.renderer.positionAtPoint(event.clientX, event.clientY);
+    if (!position) return;
+
+    this.selectWordAtPosition(position);
     event.preventDefault();
   };
 
@@ -485,6 +504,7 @@ export class ModernEditor {
 
   private bindEvents(): void {
     this.container.addEventListener("mousedown", this.handleContainerMouseDown);
+    this.container.addEventListener("dblclick", this.handleContainerDoubleClick);
     this.textarea.addEventListener("keydown", this.handleTextareaKeyDown);
     this.textarea.addEventListener("beforeinput", this.handleTextareaBeforeInput);
     this.textarea.addEventListener("input", this.handleTextareaInput);
@@ -497,6 +517,7 @@ export class ModernEditor {
 
   private unbindEvents(): void {
     this.container.removeEventListener("mousedown", this.handleContainerMouseDown);
+    this.container.removeEventListener("dblclick", this.handleContainerDoubleClick);
     this.textarea.removeEventListener("keydown", this.handleTextareaKeyDown);
     this.textarea.removeEventListener(
       "beforeinput",
@@ -727,6 +748,22 @@ export class ModernEditor {
         .setSelection({ anchor: firstPosition(), head: lastPosition(this.doc) })
         .build(),
     );
+  }
+
+  private selectWordAtPosition(position: Position): void {
+    this.preferredSelectionX = null;
+    this.handleSelectionDragEnd();
+    const wordRange = wordRangeAtPosition(this.doc, position);
+    this.dispatch(
+      createTransaction(this.doc, this.selection)
+        .setSelection(
+          wordRange
+            ? { anchor: wordRange.from, head: wordRange.to }
+            : collapsedSelection(position),
+        )
+        .build(),
+    );
+    this.focus();
   }
 
   private moveHorizontally(direction: -1 | 1, extend: boolean): void {

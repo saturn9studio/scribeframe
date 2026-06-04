@@ -74,3 +74,37 @@ test("native clipboard paste inserts plain text", async ({
     "Clipboard # Scribeframe Demo",
   );
 });
+
+test("double-clicking a word selects it for replacement", async ({ page }) => {
+  const wordPoint = await page.evaluate(() => {
+    const host = document.querySelector(".demo-editor-host");
+    if (!host) throw new Error("Editor host not found");
+
+    const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+    let node = walker.nextNode();
+    while (node) {
+      const text = node.textContent ?? "";
+      const from = text.indexOf("Markdown");
+      if (from >= 0) {
+        const range = document.createRange();
+        range.setStart(node, from);
+        range.setEnd(node, from + "Markdown".length);
+        const rect = range.getBoundingClientRect();
+        return {
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2,
+        };
+      }
+      node = walker.nextNode();
+    }
+
+    throw new Error("Target word not found");
+  });
+
+  await page.mouse.dblclick(wordPoint.x, wordPoint.y);
+  await page.keyboard.type("plain text");
+
+  await expect(page.locator(documentOutput)).toContainText(
+    "This demo edits plain text text directly.",
+  );
+});

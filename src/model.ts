@@ -232,6 +232,46 @@ export const nextWordOffset = (text: string, offset: number): number => {
   return current;
 };
 
+export const wordRangeAtPosition = (
+  doc: EditorDocument,
+  position: Position,
+): Range | null => {
+  const current = clampPosition(doc, position);
+  const text = doc.paragraphs[current.paragraph]?.text ?? "";
+  if (text.length === 0) return null;
+
+  const offsetIsWord =
+    current.offset < text.length &&
+    !isWhitespace(
+      text.slice(current.offset, nextGraphemeOffset(text, current.offset)),
+    );
+  const previous =
+    current.offset > 0 ? previousGraphemeOffset(text, current.offset) : 0;
+  const previousIsWord =
+    current.offset > 0 && !isWhitespace(text.slice(previous, current.offset));
+
+  if (!offsetIsWord && !previousIsWord) return null;
+
+  let from = offsetIsWord ? current.offset : previous;
+  while (from > 0) {
+    const nextFrom = previousGraphemeOffset(text, from);
+    if (isWhitespace(text.slice(nextFrom, from))) break;
+    from = nextFrom;
+  }
+
+  let to = offsetIsWord ? nextGraphemeOffset(text, current.offset) : current.offset;
+  while (to < text.length) {
+    const nextTo = nextGraphemeOffset(text, to);
+    if (isWhitespace(text.slice(to, nextTo))) break;
+    to = nextTo;
+  }
+
+  return {
+    from: { paragraph: current.paragraph, offset: from },
+    to: { paragraph: current.paragraph, offset: to },
+  };
+};
+
 export const previousPosition = (
   doc: EditorDocument,
   position: Position,
