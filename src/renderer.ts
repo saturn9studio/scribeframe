@@ -448,6 +448,32 @@ export class Renderer {
     };
   }
 
+  positionAtLineBoundaryFrom(
+    position: Position,
+    boundary: "start" | "end",
+  ): Position {
+    const input = this.currentInput;
+    if (!input) return position;
+
+    const clamped = clampPosition(input.doc, position);
+    const rect = this.measurePosition(clamped);
+    const paragraphElement = this.paragraphElement(clamped.paragraph);
+    if (rect && paragraphElement) {
+      const paragraphRect = paragraphElement.getBoundingClientRect();
+      const x = boundary === "start"
+        ? paragraphRect.left + 1
+        : paragraphRect.right - 1;
+      const target = this.positionAtPoint(x, rect.top + rect.height / 2);
+      if (target?.paragraph === clamped.paragraph) return target;
+    }
+
+    const paragraph = input.doc.paragraphs[clamped.paragraph];
+    return {
+      paragraph: clamped.paragraph,
+      offset: boundary === "start" ? 0 : paragraph?.text.length ?? 0,
+    };
+  }
+
   private virtualWindow(doc: EditorDocument): VirtualWindow {
     const paragraphCount = doc.paragraphs.length;
     const clientHeight = this.scrollContainer.clientHeight;

@@ -25,6 +25,24 @@ const rect = (left: number, top: number, height: number): DOMRect =>
     toJSON: () => ({}),
   }) as DOMRect;
 
+const box = (
+  left: number,
+  top: number,
+  width: number,
+  height: number,
+): DOMRect =>
+  ({
+    left,
+    top,
+    width,
+    height,
+    right: left + width,
+    bottom: top + height,
+    x: left,
+    y: top,
+    toJSON: () => ({}),
+  }) as DOMRect;
+
 const inputFor = (container: HTMLElement): HTMLTextAreaElement => {
   const input = container.querySelector<HTMLTextAreaElement>(".s9-input-proxy");
   if (!input) throw new Error("Input proxy not found");
@@ -265,6 +283,88 @@ describe("editor cursor and selection behavior", () => {
     container.remove();
   });
 
+  it("moves Home and End to visual line boundaries when text soft-wraps", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ModernEditor(container, { content: "abcdef" });
+    const caretDocument = document as CaretPositionDocument;
+    const originalCaretPositionFromPoint = caretDocument.caretPositionFromPoint;
+    const originalRangeRect = Range.prototype.getBoundingClientRect;
+    const elementRect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect");
+    Range.prototype.getBoundingClientRect = function () {
+      return rect(this.startOffset * 10, 40, 10);
+    };
+    elementRect.mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains("s9-paragraph")
+        ? box(0, 40, 200, 20)
+        : box(0, 0, 200, 20);
+    });
+    caretDocument.caretPositionFromPoint = (x) => ({
+      offsetNode: textNodeContaining(container, "abcdef"),
+      offset: x < 100 ? 1 : 5,
+    });
+
+    try {
+      setSelection(editor, { paragraph: 0, offset: 3 }, { paragraph: 0, offset: 3 });
+
+      keyDown(container, "End", { shiftKey: true });
+      expect(editor.getSelection()).toEqual({
+        anchor: { paragraph: 0, offset: 3 },
+        head: { paragraph: 0, offset: 5 },
+      });
+
+      keyDown(container, "Home", { shiftKey: true });
+      expect(editor.getSelection()).toEqual({
+        anchor: { paragraph: 0, offset: 3 },
+        head: { paragraph: 0, offset: 1 },
+      });
+    } finally {
+      caretDocument.caretPositionFromPoint = originalCaretPositionFromPoint;
+      if (originalRangeRect) {
+        Range.prototype.getBoundingClientRect = originalRangeRect;
+      } else {
+        delete (Range.prototype as Partial<Range>).getBoundingClientRect;
+      }
+      editor.destroy();
+      container.remove();
+    }
+  });
+
+  it("supports document-boundary keyboard navigation", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ModernEditor(container, {
+      content: "abc\ndef",
+    });
+
+    keyDown(container, "ArrowDown", { metaKey: true });
+    expect(editor.getSelection()).toEqual({
+      anchor: { paragraph: 1, offset: 3 },
+      head: { paragraph: 1, offset: 3 },
+    });
+
+    keyDown(container, "ArrowUp", { metaKey: true, shiftKey: true });
+    expect(editor.getSelection()).toEqual({
+      anchor: { paragraph: 1, offset: 3 },
+      head: { paragraph: 0, offset: 0 },
+    });
+
+    keyDown(container, "End", { ctrlKey: true });
+    expect(editor.getSelection()).toEqual({
+      anchor: { paragraph: 1, offset: 3 },
+      head: { paragraph: 1, offset: 3 },
+    });
+
+    keyDown(container, "Home", { ctrlKey: true });
+    expect(editor.getSelection()).toEqual({
+      anchor: { paragraph: 0, offset: 0 },
+      head: { paragraph: 0, offset: 0 },
+    });
+
+    editor.destroy();
+    container.remove();
+  });
+
   it("allows cursor navigation in read-only mode without allowing edits", () => {
     const container = document.createElement("div");
     document.body.append(container);
@@ -343,11 +443,12 @@ describe("editor cursor and selection behavior", () => {
         new MouseEvent("mouseup", { button: 0, bubbles: true }),
       );
 
-      const event = new MouseEvent("dblclick", {
+      const event = new MouseEvent("mousedown", {
         button: 0,
         bubbles: true,
         cancelable: true,
         clientX: 8,
+        detail: 2,
       });
       container.dispatchEvent(event);
       document.dispatchEvent(

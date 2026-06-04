@@ -145,6 +145,10 @@ Horizontal movement and deletion are grapheme-aware by default and support
 word-granularity commands through the platform word modifier (`Alt`/`Option`, or
 `Ctrl` where appropriate). Word deletion is recorded as an undo boundary so a
 whole-word edit undoes as one user action.
+Line-boundary movement resolves through renderer geometry so Home/End stay on the
+current visual line when text soft-wraps, with paragraph-boundary fallback when
+geometry is unavailable. Document-boundary shortcuts target the first and last
+document positions directly.
 
 Clipboard operations use display text. Copy writes the selected display range as
 `text/plain`; cut writes the same text and records the deletion as a boundary

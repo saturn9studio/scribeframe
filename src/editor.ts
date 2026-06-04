@@ -137,6 +137,8 @@ export class ModernEditor {
   private readonly renderer: Renderer;
   private slots: PluginSlot[];
   private isComposing = false;
+  private ignoreNextCompositionInput = false;
+  private committedCompositionText = "";
   private destroyed = false;
   private selectionDragAnchor: Position | null = null;
   private preferredSelectionX: number | null = null;
@@ -202,18 +204,6 @@ export class ModernEditor {
     event.preventDefault();
   };
 
-  private readonly handleContainerDoubleClick = (event: MouseEvent): void => {
-    if (this.destroyed) return;
-    if (event.button !== 0) return;
-    const target = event.target;
-    if (target instanceof HTMLElement && target.closest(".s9-widget")) return;
-    const position = this.renderer.positionAtPoint(event.clientX, event.clientY);
-    if (!position) return;
-
-    this.selectWordAtPosition(position);
-    event.preventDefault();
-  };
-
   private readonly handleTextareaKeyDown = (event: KeyboardEvent): void => {
     if (this.destroyed) return;
     this.handleKeyDown(event);
@@ -232,13 +222,17 @@ export class ModernEditor {
   private readonly handleCompositionStart = (): void => {
     if (this.destroyed) return;
     this.isComposing = true;
+    this.ignoreNextCompositionInput = false;
+    this.committedCompositionText = "";
   };
 
   private readonly handleCompositionEnd = (event: CompositionEvent): void => {
     if (this.destroyed) return;
     this.isComposing = false;
-    const text = event.data;
+    const text = event.data || this.textarea.value;
     this.textarea.value = "";
+    this.ignoreNextCompositionInput = text.length > 0;
+    this.committedCompositionText = text;
     this.insertText(text, this.historyEventForInput(text));
   };
 
@@ -511,7 +505,6 @@ export class ModernEditor {
 
   private bindEvents(): void {
     this.container.addEventListener("mousedown", this.handleContainerMouseDown);
-    this.container.addEventListener("dblclick", this.handleContainerDoubleClick);
     this.textarea.addEventListener("keydown", this.handleTextareaKeyDown);
     this.textarea.addEventListener("beforeinput", this.handleTextareaBeforeInput);
     this.textarea.addEventListener("input", this.handleTextareaInput);
@@ -524,7 +517,6 @@ export class ModernEditor {
 
   private unbindEvents(): void {
     this.container.removeEventListener("mousedown", this.handleContainerMouseDown);
-    this.container.removeEventListener("dblclick", this.handleContainerDoubleClick);
     this.textarea.removeEventListener("keydown", this.handleTextareaKeyDown);
     this.textarea.removeEventListener(
       "beforeinput",
@@ -559,7 +551,10 @@ export class ModernEditor {
         this.dispatch(transaction),
       ),
     );
-    if (handledByPlugin) return;
+    if (handledByPlugin) {
+      event.preventDefault();
+      return;
+    }
 
     this.runKeymap(defaultEditorKeymap, event);
   }
@@ -614,6 +609,18 @@ export class ModernEditor {
         return true;
       case editorCommandNames.selectAll:
         this.selectAll();
+        return true;
+      case editorCommandNames.moveDocumentStart:
+        this.moveToDocumentBoundary("start", false);
+        return true;
+      case editorCommandNames.moveDocumentStartExtend:
+        this.moveToDocumentBoundary("start", true);
+        return true;
+      case editorCommandNames.moveDocumentEnd:
+        this.moveToDocumentBoundary("end", false);
+        return true;
+      case editorCommandNames.moveDocumentEndExtend:
+        this.moveToDocumentBoundary("end", true);
         return true;
       case editorCommandNames.moveLeft:
         this.moveHorizontally(-1, false);
@@ -837,9 +844,18 @@ export class ModernEditor {
 
   private moveToLineBoundary(boundary: "start" | "end", extend: boolean): void {
     this.preferredSelectionX = null;
-    const paragraph = this.doc.paragraphs[this.selection.head.paragraph];
-    const offset = boundary === "start" ? 0 : paragraph?.text.length ?? 0;
-    this.setSelectionHead({ paragraph: this.selection.head.paragraph, offset }, extend);
+    this.setSelectionHead(
+      this.renderer.positionAtLineBoundaryFrom(this.selection.head, boundary),
+      extend,
+    );
+  }
+
+  private moveToDocumentBoundary(boundary: "start" | "end", extend: boolean): void {
+    this.preferredSelectionX = null;
+    this.setSelectionHead(
+      boundary === "start" ? firstPosition() : lastPosition(this.doc),
+      extend,
+    );
   }
 
   private setSelectionHead(position: Position, extend: boolean): void {
@@ -857,11 +873,24 @@ export class ModernEditor {
   private handleInput(): void {
     if (this.readOnly) {
       this.textarea.value = "";
+      this.ignoreNextCompositionInput = false;
+      this.committedCompositionText = "";
       return;
     }
     if (this.isComposing) return;
     const text = this.textarea.value;
     this.textarea.value = "";
+    if (
+      this.ignoreNextCompositionInput &&
+      (text.length === 0 || text === this.committedCompositionText)
+    ) {
+      this.ignoreNextCompositionInput = false;
+      this.committedCompositionText = "";
+      return;
+    }
+
+    this.ignoreNextCompositionInput = false;
+    this.committedCompositionText = "";
     this.insertText(text, this.historyEventForInput(text));
   }
 
