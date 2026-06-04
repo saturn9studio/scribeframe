@@ -127,8 +127,27 @@ describe("editor input correctness", () => {
     expect(editor.getContent()).toBe("abc");
 
     input.dispatchEvent(composition("compositionend", "文"));
+    input.value = "文";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
 
     expect(editor.getContent()).toBe("abc文");
+    expect(input.value).toBe("");
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("falls back to the composition buffer when compositionend has no data", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ModernEditor(container, { content: "" });
+    const input = inputFor(container);
+
+    input.dispatchEvent(composition("compositionstart", ""));
+    input.value = "한";
+    input.dispatchEvent(composition("compositionend", ""));
+
+    expect(editor.getContent()).toBe("한");
     expect(input.value).toBe("");
 
     editor.destroy();

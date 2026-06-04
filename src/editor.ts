@@ -19,6 +19,7 @@ import {
   Position,
   Range,
   Selection,
+  clampPosition,
   clampSelection,
   collapsedSelection,
   documentFromText,
@@ -32,6 +33,7 @@ import {
   previousWordPosition,
   selectionIsCollapsed,
   textInRange,
+  wordRangeAtPosition,
 } from "./model";
 import {
   EditorPlugin,
@@ -135,6 +137,8 @@ export class ModernEditor {
   private readonly renderer: Renderer;
   private slots: PluginSlot[];
   private isComposing = false;
+  private ignoreNextCompositionInput = false;
+  private committedCompositionText = "";
   private destroyed = false;
   private selectionDragAnchor: Position | null = null;
   private preferredSelectionX: number | null = null;
@@ -169,6 +173,18 @@ export class ModernEditor {
     if (target instanceof HTMLElement && target.closest(".s9-widget")) return;
     const position = this.renderer.positionAtPoint(event.clientX, event.clientY);
     if (!position) return;
+
+    if (event.detail >= 3) {
+      this.selectParagraphAtPosition(position);
+      event.preventDefault();
+      return;
+    }
+
+    if (event.detail === 2) {
+      this.selectWordAtPosition(position);
+      event.preventDefault();
+      return;
+    }
 
     const anchor = event.shiftKey ? this.selection.anchor : position;
     this.preferredSelectionX = null;
@@ -206,13 +222,17 @@ export class ModernEditor {
   private readonly handleCompositionStart = (): void => {
     if (this.destroyed) return;
     this.isComposing = true;
+    this.ignoreNextCompositionInput = false;
+    this.committedCompositionText = "";
   };
 
   private readonly handleCompositionEnd = (event: CompositionEvent): void => {
     if (this.destroyed) return;
     this.isComposing = false;
-    const text = event.data;
+    const text = event.data || this.textarea.value;
     this.textarea.value = "";
+    this.ignoreNextCompositionInput = text.length > 0;
+    this.committedCompositionText = text;
     this.insertText(text, this.historyEventForInput(text));
   };
 
@@ -531,7 +551,10 @@ export class ModernEditor {
         this.dispatch(transaction),
       ),
     );
-    if (handledByPlugin) return;
+    if (handledByPlugin) {
+      event.preventDefault();
+      return;
+    }
 
     this.runKeymap(defaultEditorKeymap, event);
   }
@@ -586,6 +609,18 @@ export class ModernEditor {
         return true;
       case editorCommandNames.selectAll:
         this.selectAll();
+        return true;
+      case editorCommandNames.moveDocumentStart:
+        this.moveToDocumentBoundary("start", false);
+        return true;
+      case editorCommandNames.moveDocumentStartExtend:
+        this.moveToDocumentBoundary("start", true);
+        return true;
+      case editorCommandNames.moveDocumentEnd:
+        this.moveToDocumentBoundary("end", false);
+        return true;
+      case editorCommandNames.moveDocumentEndExtend:
+        this.moveToDocumentBoundary("end", true);
         return true;
       case editorCommandNames.moveLeft:
         this.moveHorizontally(-1, false);
@@ -729,6 +764,41 @@ export class ModernEditor {
     );
   }
 
+  private selectWordAtPosition(position: Position): void {
+    this.preferredSelectionX = null;
+    this.handleSelectionDragEnd();
+    const wordRange = wordRangeAtPosition(this.doc, position);
+    this.dispatch(
+      createTransaction(this.doc, this.selection)
+        .setSelection(
+          wordRange
+            ? { anchor: wordRange.from, head: wordRange.to }
+            : collapsedSelection(position),
+        )
+        .build(),
+    );
+    this.focus();
+  }
+
+  private selectParagraphAtPosition(position: Position): void {
+    this.preferredSelectionX = null;
+    this.handleSelectionDragEnd();
+    const current = clampPosition(this.doc, position);
+    const paragraph = this.doc.paragraphs[current.paragraph];
+    this.dispatch(
+      createTransaction(this.doc, this.selection)
+        .setSelection({
+          anchor: { paragraph: current.paragraph, offset: 0 },
+          head: {
+            paragraph: current.paragraph,
+            offset: paragraph?.text.length ?? 0,
+          },
+        })
+        .build(),
+    );
+    this.focus();
+  }
+
   private moveHorizontally(direction: -1 | 1, extend: boolean): void {
     this.preferredSelectionX = null;
     const range = normalizeRange(this.selection);
@@ -774,9 +844,18 @@ export class ModernEditor {
 
   private moveToLineBoundary(boundary: "start" | "end", extend: boolean): void {
     this.preferredSelectionX = null;
-    const paragraph = this.doc.paragraphs[this.selection.head.paragraph];
-    const offset = boundary === "start" ? 0 : paragraph?.text.length ?? 0;
-    this.setSelectionHead({ paragraph: this.selection.head.paragraph, offset }, extend);
+    this.setSelectionHead(
+      this.renderer.positionAtLineBoundaryFrom(this.selection.head, boundary),
+      extend,
+    );
+  }
+
+  private moveToDocumentBoundary(boundary: "start" | "end", extend: boolean): void {
+    this.preferredSelectionX = null;
+    this.setSelectionHead(
+      boundary === "start" ? firstPosition() : lastPosition(this.doc),
+      extend,
+    );
   }
 
   private setSelectionHead(position: Position, extend: boolean): void {
@@ -794,11 +873,24 @@ export class ModernEditor {
   private handleInput(): void {
     if (this.readOnly) {
       this.textarea.value = "";
+      this.ignoreNextCompositionInput = false;
+      this.committedCompositionText = "";
       return;
     }
     if (this.isComposing) return;
     const text = this.textarea.value;
     this.textarea.value = "";
+    if (
+      this.ignoreNextCompositionInput &&
+      (text.length === 0 || text === this.committedCompositionText)
+    ) {
+      this.ignoreNextCompositionInput = false;
+      this.committedCompositionText = "";
+      return;
+    }
+
+    this.ignoreNextCompositionInput = false;
+    this.committedCompositionText = "";
     this.insertText(text, this.historyEventForInput(text));
   }
 

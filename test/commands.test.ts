@@ -136,4 +136,28 @@ describe("editor commands and keymaps", () => {
     editor.destroy();
     container.remove();
   });
+
+  it("prevents default browser behavior when a plugin handles keydown", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const plugin: EditorPlugin<null> = {
+      id: new PluginId("handle-keydown"),
+      init: () => null,
+      apply: () => null,
+      props: {
+        handleKeyDown: () => true,
+      },
+    };
+    const editor = new ModernEditor(container, {
+      content: "",
+      plugins: [plugin],
+    });
+
+    const event = keyDown(container, "Tab");
+
+    expect(event.defaultPrevented).toBe(true);
+
+    editor.destroy();
+    container.remove();
+  });
 });
