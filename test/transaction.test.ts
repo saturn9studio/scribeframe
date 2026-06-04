@@ -1,14 +1,34 @@
 import { describe, expect, it } from "vitest";
 import {
+  absoluteOffset,
   collapsedSelection,
   createTransaction,
   documentFromText,
   documentToText,
   firstPosition,
+  positionFromOffset,
   createTransactionMetaKey,
 } from "../src";
 
 describe("transactions", () => {
+  it("roundtrips empty and trailing-paragraph display text", () => {
+    ["", "\n", "one\n", "one\n\nthree\n"].forEach((text) => {
+      expect(documentToText(documentFromText(text))).toBe(text);
+    });
+  });
+
+  it("roundtrips absolute offsets at paragraph boundaries", () => {
+    const text = "a\n\nbc\n";
+    const doc = documentFromText(text);
+
+    Array.from({ length: text.length + 1 }, (_value, offset) => {
+      expect(absoluteOffset(doc, positionFromOffset(doc, offset))).toBe(offset);
+    });
+    expect(absoluteOffset(doc, positionFromOffset(doc, text.length + 10))).toBe(
+      text.length,
+    );
+  });
+
   it("replaces text inside a paragraph immutably", () => {
     const doc = documentFromText("hello world");
     const selection = collapsedSelection({ paragraph: 0, offset: 5 });

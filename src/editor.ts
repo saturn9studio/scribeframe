@@ -939,7 +939,13 @@ export class ModernEditor {
       return;
     }
     const text = event.clipboardData?.getData("text/plain") ?? "";
-    if (text.length === 0) return;
+    if (text.length === 0) {
+      if ((event.clipboardData?.getData("text/html") ?? "").length > 0) {
+        event.preventDefault();
+        this.textarea.value = "";
+      }
+      return;
+    }
     event.preventDefault();
     this.dispatch(
       createTransaction(this.doc, this.selection)

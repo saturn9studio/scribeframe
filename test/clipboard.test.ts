@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { ModernEditor } from "../src";
+import {
+  codeBlockWidgetPlugin,
+  markdownSyntaxProvider,
+} from "../demo/src/markdown";
 
 interface ClipboardStore {
   readonly event: ClipboardEvent;
@@ -15,9 +19,11 @@ const inputFor = (container: HTMLElement): HTMLTextAreaElement => {
 const clipboardEvent = (
   type: "copy" | "cut" | "paste",
   text = "",
+  html = "",
 ): ClipboardStore => {
   const data = new Map<string, string>();
   if (text.length > 0) data.set("text/plain", text);
+  if (html.length > 0) data.set("text/html", html);
   const event = new Event(type, {
     bubbles: true,
     cancelable: true,
@@ -49,6 +55,58 @@ describe("editor clipboard behavior", () => {
     expect(event.defaultPrevented).toBe(true);
     expect(data.get("text/plain")).toBe("pha\nbe");
     expect(editor.getContent()).toBe("alpha\nbeta");
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("copies multi-paragraph ranges with paragraph-boundary newlines", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ModernEditor(container, { content: "one\ntwo\nthree\n" });
+
+    editor.selectRange({
+      from: { paragraph: 0, offset: 0 },
+      to: { paragraph: 1, offset: 0 },
+    });
+    const paragraphBoundary = clipboardEvent("copy");
+    inputFor(container).dispatchEvent(paragraphBoundary.event);
+    expect(paragraphBoundary.data.get("text/plain")).toBe("one\n");
+
+    editor.selectRange({
+      from: { paragraph: 0, offset: 0 },
+      to: { paragraph: 3, offset: 0 },
+    });
+    const trailingBoundary = clipboardEvent("copy");
+    inputFor(container).dispatchEvent(trailingBoundary.event);
+    expect(trailingBoundary.data.get("text/plain")).toBe("one\ntwo\nthree\n");
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("copies and cuts source text hidden behind block widgets", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const source = "```ts\nconst x = 1;\n```";
+    const editor = new ModernEditor(container, {
+      content: `${source}\nafter`,
+      syntaxProvider: markdownSyntaxProvider,
+      plugins: [codeBlockWidgetPlugin()],
+    });
+
+    editor.selectRange({
+      from: { paragraph: 0, offset: 0 },
+      to: { paragraph: 2, offset: 3 },
+    });
+    const copy = clipboardEvent("copy");
+    inputFor(container).dispatchEvent(copy.event);
+    expect(copy.data.get("text/plain")).toBe(source);
+
+    const cut = clipboardEvent("cut");
+    inputFor(container).dispatchEvent(cut.event);
+    expect(cut.data.get("text/plain")).toBe(source);
+    expect(editor.getContent()).toBe("\nafter");
 
     editor.destroy();
     container.remove();
@@ -151,6 +209,25 @@ describe("editor clipboard behavior", () => {
     inputFor(container).dispatchEvent(paste.event);
 
     expect(paste.event.defaultPrevented).toBe(false);
+    expect(editor.getContent()).toBe("abc");
+    expect(editor.canUndo()).toBe(false);
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("suppresses html-only paste without mutating the editor", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ModernEditor(container, { content: "abc" });
+    const input = inputFor(container);
+
+    input.value = "stale";
+    const paste = clipboardEvent("paste", "", "<strong>rich</strong>");
+    input.dispatchEvent(paste.event);
+
+    expect(paste.event.defaultPrevented).toBe(true);
+    expect(input.value).toBe("");
     expect(editor.getContent()).toBe("abc");
     expect(editor.canUndo()).toBe(false);
 
