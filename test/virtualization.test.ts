@@ -85,6 +85,53 @@ const viewportWidgetPlugin = (counts: Counts): EditorPlugin<null> => {
   };
 };
 
+const focusableViewportWidgetPlugin = (counts: Counts): EditorPlugin<null> => {
+  const renderer: WidgetRenderer<{ readonly label: string }> = {
+    mount(host, props) {
+      counts.mounts += 1;
+      const input = document.createElement("input");
+      input.className = "viewport-widget-input";
+      input.value = props.label;
+      host.replaceChildren(input);
+      return {
+        update(nextProps) {
+          counts.updates += 1;
+          input.value = nextProps.label;
+        },
+        destroy() {
+          counts.destroys += 1;
+          host.replaceChildren();
+        },
+      };
+    },
+  };
+
+  return {
+    id: new PluginId<null>("focusable-viewport-widget"),
+    init: () => null,
+    apply: () => null,
+    widgets: ({ doc }): readonly WidgetDecoration[] =>
+      doc.paragraphs.length > 10
+        ? [
+            {
+              key: "focusable-viewport-widget:ten",
+              placement: "block",
+              range: {
+                from: { paragraph: 10, offset: 0 },
+                to: {
+                  paragraph: 10,
+                  offset: doc.paragraphs[10]?.text.length ?? 0,
+                },
+              },
+              props: { label: "focused widget" },
+              render: renderer,
+              selection: "block",
+            },
+          ]
+        : [],
+  };
+};
+
 describe("renderer virtualization and scrolling", () => {
   it("maps scroll fractions onto the virtual document height", () => {
     const container = document.createElement("div");
@@ -254,6 +301,41 @@ describe("renderer virtualization and scrolling", () => {
 
     editor.scrollToFraction(0);
     expect(counts.destroys).toBe(1);
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("returns focus to the editor when a focused widget virtualizes out", () => {
+    const container = document.createElement("div");
+    setViewport(container, 40);
+    document.body.append(container);
+    const counts = { mounts: 0, updates: 0, destroys: 0 };
+
+    const editor = new ModernEditor(container, {
+      content: lines(20),
+      plugins: [focusableViewportWidgetPlugin(counts)],
+      virtualization: { estimateParagraphHeight: 20, overscan: 0 },
+    });
+
+    editor.revealPosition({ paragraph: 10, offset: 0 }, { block: "start" });
+    const widgetInput = container.querySelector<HTMLInputElement>(
+      ".viewport-widget-input",
+    );
+    const editorInput = container.querySelector<HTMLTextAreaElement>(
+      ".s9-input-proxy",
+    );
+    expect(widgetInput).not.toBeNull();
+    expect(editorInput).not.toBeNull();
+    if (!widgetInput || !editorInput) return;
+
+    widgetInput.focus();
+    expect(document.activeElement).toBe(widgetInput);
+
+    editor.scrollToFraction(0);
+
+    expect(counts.destroys).toBe(1);
+    expect(document.activeElement).toBe(editorInput);
 
     editor.destroy();
     container.remove();
