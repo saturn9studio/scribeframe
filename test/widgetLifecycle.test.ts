@@ -102,6 +102,29 @@ describe("widget lifecycle", () => {
     editor.destroy();
     container.remove();
   });
+
+  it("applies read-only state when code block widgets mount", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ModernEditor(container, {
+      content: "```ts\nconst x = 1;\n```",
+      syntaxProvider: markdownSyntaxProvider,
+      plugins: [codeBlockWidgetPlugin()],
+      readOnly: true,
+    });
+
+    expect(
+      container.querySelector<HTMLInputElement>(".s9-code-widget-language")
+        ?.readOnly,
+    ).toBe(true);
+    expect(
+      container.querySelector<HTMLTextAreaElement>(".s9-code-widget-textarea")
+        ?.readOnly,
+    ).toBe(true);
+
+    editor.destroy();
+    container.remove();
+  });
 });
 
 describe("widget focus", () => {

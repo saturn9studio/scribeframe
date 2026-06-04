@@ -195,10 +195,12 @@ class CodeBlockWidgetRenderer
     language.className = "s9-code-widget-language";
     language.placeholder = "language";
     language.value = props.language;
+    language.readOnly = context.readOnly;
 
     const textarea = document.createElement("textarea");
     textarea.className = "s9-code-widget-textarea";
     textarea.value = props.content;
+    textarea.readOnly = context.readOnly;
     textarea.spellcheck = false;
 
     const commit = () => {

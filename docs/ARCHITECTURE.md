@@ -122,7 +122,9 @@ Rendering is virtualized when the scroll container has a measurable viewport.
 The renderer keeps a visible paragraph window with configurable overscan and
 uses spacer blocks to preserve total document height. Widgets are mounted only
 while their covered paragraph is in the rendered window, and the same
-renderer-owned lifecycle destroys offscreen widget hosts.
+renderer-owned lifecycle destroys offscreen widget hosts. If the focused widget
+virtualizes out, focus returns to the editor input proxy because the focused
+widget DOM is no longer live.
 
 The editor root owns the accessible textbox semantics for the whole surface:
 `role="textbox"`, `aria-multiline="true"`, configurable `aria-label`,

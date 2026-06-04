@@ -743,8 +743,13 @@ export class Renderer {
 
   private restoreWidgetFocus(snapshot: WidgetFocusSnapshot | null): void {
     if (!snapshot) return;
-    if (!this.widgets.has(snapshot.widgetKey)) return;
-    if (!this.root.contains(snapshot.element)) return;
+    if (
+      !this.widgets.has(snapshot.widgetKey) ||
+      !this.root.contains(snapshot.element)
+    ) {
+      this.actions.focusEditor();
+      return;
+    }
 
     snapshot.element.focus({ preventScroll: true });
 
