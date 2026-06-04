@@ -104,13 +104,20 @@ normalization steps, and an optional `destroy` hook. `destroy` receives the late
 plugin state and editor snapshot so plugins can cancel async work and release
 external resources without reaching into editor internals.
 
-`ModernEditor.setPlugins()` reconfigures the plugin list at runtime. Exact plugin
-instances that remain installed keep their state. Removed plugin instances are
-destroyed once, and newly added plugin instances are initialized against the
-current editor snapshot. Editor `destroy()` is idempotent and destroys installed
-plugins before tearing down the renderer. Destroy also removes root, input-proxy,
-and document drag listeners so retained DOM nodes cannot keep mutating editor
-state after unmount.
+`ModernEditor.setPlugins()` reconfigures the plugin list at runtime. Plugin
+state is keyed by `PluginId` object identity, so factories can return fresh
+plugin objects while preserving state by reusing the same exported id. When a
+plugin object changes for a retained id, the slot rebinds to the new behavior
+without re-running `init`. Duplicate ids in a plugin list are rejected before the
+editor mutates plugin state. Removed plugin ids are destroyed once, and newly
+added ids are initialized against the current editor snapshot. Editor
+`destroy()` is idempotent and destroys installed plugins before tearing down the
+renderer. Destroy also removes root, input-proxy, and document drag listeners so
+retained DOM nodes cannot keep mutating editor state after unmount.
+
+Transaction metadata keys are also identity-based. The human-readable key name is
+for diagnostics; two keys with the same name do not overwrite each other unless
+callers reuse the same key object.
 
 ## Scrolling and virtualization
 

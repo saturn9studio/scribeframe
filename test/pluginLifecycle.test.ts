@@ -138,4 +138,114 @@ describe("plugin lifecycle", () => {
     expect(counts.retainedDestroy).toBe(1);
     container.remove();
   });
+
+  it("preserves state and rebinds behavior for new plugin objects with the same id", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const id = new PluginId<{ readonly count: number }>("rebound");
+    const plugin = (
+      increment: number,
+    ): EditorPlugin<{ readonly count: number }> => ({
+      id,
+      init: () => ({ count: 0 }),
+      apply: ({ state, transaction }) => ({
+        count:
+          transaction.displayChanges.length > 0
+            ? state.count + increment
+            : state.count,
+      }),
+    });
+    const editor = new ModernEditor(container, {
+      content: "",
+      plugins: [plugin(1)],
+    });
+
+    editor.dispatch(
+      createTransaction(editor.getDocument(), editor.getSelection())
+        .replaceSelection("a")
+        .build(),
+    );
+    editor.setPlugins([plugin(10)]);
+    editor.dispatch(
+      createTransaction(editor.getDocument(), editor.getSelection())
+        .replaceSelection("b")
+        .build(),
+    );
+
+    expect(editor.getPluginState(id)).toEqual({ count: 11 });
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("rejects duplicate plugin ids before initialization or reconfiguration", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const id = new PluginId<null>("duplicate");
+    const destroyCounts = { retained: 0 };
+    const plugin = (destroy?: () => void): EditorPlugin<null> => ({
+      id,
+      init: () => null,
+      apply: () => null,
+      destroy,
+    });
+    const retainedId = new PluginId<null>("retained-duplicate-test");
+    const retainedPlugin: EditorPlugin<null> = {
+      id: retainedId,
+      init: () => null,
+      apply: () => null,
+      destroy: () => {
+        destroyCounts.retained += 1;
+      },
+    };
+
+    expect(
+      () =>
+        new ModernEditor(document.createElement("div"), {
+          plugins: [plugin(), plugin()],
+        }),
+    ).toThrow("Duplicate plugin id: duplicate");
+
+    const editor = new ModernEditor(container, {
+      plugins: [retainedPlugin],
+    });
+    expect(() => editor.setPlugins([retainedPlugin, retainedPlugin])).toThrow(
+      "Duplicate plugin id: retained-duplicate-test",
+    );
+
+    expect(destroyCounts.retained).toBe(0);
+    expect(editor.getPluginState(retainedId)).toBeNull();
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("treats same-name plugin ids as distinct identities", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const firstId = new PluginId<{ readonly value: string }>("same-name");
+    const secondId = new PluginId<{ readonly value: string }>("same-name");
+    const plugin = (
+      id: PluginId<{ readonly value: string }>,
+      value: string,
+    ): EditorPlugin<{ readonly value: string }> => ({
+      id,
+      init: () => ({ value }),
+      apply: ({ state }) => state,
+    });
+    const editor = new ModernEditor(container, {
+      plugins: [plugin(firstId, "first"), plugin(secondId, "second")],
+    });
+
+    expect(editor.getPluginState(firstId)).toEqual({ value: "first" });
+    expect(editor.getPluginState(secondId)).toEqual({ value: "second" });
+    expect(
+      editor.getPluginState(
+        new PluginId<{ readonly value: string }>("same-name"),
+      ),
+    ).toBeUndefined();
+
+    editor.destroy();
+    container.remove();
+  });
 });

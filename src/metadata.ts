@@ -3,27 +3,29 @@ export interface TransactionMetaKey<T> {
   readonly _type?: T;
 }
 
+type AnyTransactionMetaKey = TransactionMetaKey<unknown>;
+
 export const createTransactionMetaKey = <T>(
   name: string,
 ): TransactionMetaKey<T> => ({ name });
 
 export class TransactionMetaStore {
-  private readonly values: Map<string, unknown>;
+  private readonly values: Map<AnyTransactionMetaKey, unknown>;
 
-  constructor(values?: Iterable<readonly [string, unknown]>) {
+  constructor(values?: Iterable<readonly [AnyTransactionMetaKey, unknown]>) {
     this.values = new Map(values);
   }
 
   get<T>(key: TransactionMetaKey<T>): T | undefined {
-    return this.values.get(key.name) as T | undefined;
+    return this.values.get(key) as T | undefined;
   }
 
   set<T>(key: TransactionMetaKey<T>, value: T): TransactionMetaStore {
-    return new TransactionMetaStore([...this.values, [key.name, value]]);
+    return new TransactionMetaStore([...this.values, [key, value]]);
   }
 
   has<T>(key: TransactionMetaKey<T>): boolean {
-    return this.values.has(key.name);
+    return this.values.has(key);
   }
 }
 
