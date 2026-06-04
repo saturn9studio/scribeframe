@@ -19,6 +19,8 @@ Run the demo:
 npm run demo -w=@saturn9/scribeframe
 ```
 
+Read the public API reference: [docs/API.md](docs/API.md).
+
 Build and test:
 
 ```bash
