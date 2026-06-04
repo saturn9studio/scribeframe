@@ -137,10 +137,15 @@ widget DOM is no longer live.
 
 The editor root owns the accessible textbox semantics for the whole surface:
 `role="textbox"`, `aria-multiline="true"`, configurable `aria-label`,
-synchronized `aria-readonly`, and a focusable `tabindex`. Visual selection and
+synchronized `aria-readonly`, and a focusable `tabindex`. The root is the only
+tab stop; when it receives focus, the editor moves focus to the hidden input
+proxy so keyboard input still follows the native textarea event path while
+`:focus-within` keeps focus visible on the rendered editor. Visual selection and
 caret overlays are marked `aria-hidden` because the engine's internal selection
-state is authoritative. Destroying an editor removes renderer-owned DOM and
-restores pre-existing host accessibility attributes and editor classes.
+state is authoritative. Core styles include reduced-motion handling for caret
+blink and forced-colors affordances for focus, caret, and selection overlays.
+Destroying an editor removes renderer-owned DOM and restores pre-existing host
+accessibility attributes and editor classes.
 
 ## Input correctness
 

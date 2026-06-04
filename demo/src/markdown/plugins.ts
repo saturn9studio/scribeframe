@@ -183,6 +183,8 @@ class CodeBlockWidgetRenderer
     let markup = props.markup;
     const root = document.createElement("div");
     root.className = "s9-code-widget";
+    root.setAttribute("role", "group");
+    root.setAttribute("aria-label", "Code block");
 
     const header = document.createElement("div");
     header.className = "s9-code-widget-header";
@@ -193,12 +195,14 @@ class CodeBlockWidgetRenderer
 
     const language = document.createElement("input");
     language.className = "s9-code-widget-language";
+    language.setAttribute("aria-label", "Code block language");
     language.placeholder = "language";
     language.value = props.language;
     language.readOnly = context.readOnly;
 
     const textarea = document.createElement("textarea");
     textarea.className = "s9-code-widget-textarea";
+    textarea.setAttribute("aria-label", "Code block content");
     textarea.value = props.content;
     textarea.readOnly = context.readOnly;
     textarea.spellcheck = false;

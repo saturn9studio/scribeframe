@@ -1,5 +1,12 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { cwd } from "node:process";
 import { describe, expect, it } from "vitest";
 import { ModernEditor } from "../src";
+import {
+  codeBlockWidgetPlugin,
+  markdownSyntaxProvider,
+} from "../demo/src/markdown";
 
 const inputFor = (container: HTMLElement): HTMLTextAreaElement => {
   const input = container.querySelector<HTMLTextAreaElement>(".s9-input-proxy");
@@ -22,9 +29,18 @@ describe("renderer accessibility", () => {
     expect(container.getAttribute("aria-multiline")).toBe("true");
     expect(container.getAttribute("aria-readonly")).toBe("false");
     expect(container.getAttribute("tabindex")).toBe("0");
-    expect(inputFor(container).getAttribute("aria-label")).toBe("Draft body input");
-    expect(container.querySelector(".s9-selection-layer")?.getAttribute("aria-hidden")).toBe("true");
-    expect(container.querySelector(".s9-caret")?.getAttribute("aria-hidden")).toBe("true");
+    expect(inputFor(container).tabIndex).toBe(-1);
+    expect(inputFor(container).getAttribute("aria-label")).toBe(
+      "Draft body input",
+    );
+    expect(
+      container
+        .querySelector(".s9-selection-layer")
+        ?.getAttribute("aria-hidden"),
+    ).toBe("true");
+    expect(
+      container.querySelector(".s9-caret")?.getAttribute("aria-hidden"),
+    ).toBe("true");
 
     editor.destroy();
     container.remove();
@@ -77,5 +93,64 @@ describe("renderer accessibility", () => {
     expect(container.querySelector(".s9-input-proxy")).toBeNull();
 
     container.remove();
+  });
+
+  it("delegates keyboard focus from the visible textbox to the input proxy", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ModernEditor(container, {
+      ariaLabel: "Keyboard target",
+      content: "",
+    });
+
+    container.focus();
+
+    expect(document.activeElement).toBe(inputFor(container));
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("gives code block widget controls accessible names", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ModernEditor(container, {
+      content: "```ts\nconst x = 1;\n```",
+      syntaxProvider: markdownSyntaxProvider,
+      plugins: [codeBlockWidgetPlugin()],
+    });
+
+    expect(
+      container
+        .querySelector<HTMLElement>(".s9-code-widget")
+        ?.getAttribute("role"),
+    ).toBe("group");
+    expect(
+      container
+        .querySelector<HTMLInputElement>(".s9-code-widget-language")
+        ?.getAttribute("aria-label"),
+    ).toBe("Code block language");
+    expect(
+      container
+        .querySelector<HTMLTextAreaElement>(".s9-code-widget-textarea")
+        ?.getAttribute("aria-label"),
+    ).toBe("Code block content");
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("keeps focus, reduced-motion, and forced-colors affordances in core styles", () => {
+    const styles = readFileSync(resolve(cwd(), "src/styles.css"), "utf8");
+    const reducedMotionCaret =
+      /@media\s*\(prefers-reduced-motion:\s*no-preference\)[\s\S]*\.s9-caret[\s\S]*animation:/u;
+    const forcedColors =
+      /@media\s*\(forced-colors:\s*active\)[\s\S]*Highlight[\s\S]*CanvasText/u;
+
+    expect(styles).toContain(
+      ".s9-editor-root:focus-within .s9-editor-surface",
+    );
+    expect(styles).toMatch(reducedMotionCaret);
+    expect(styles).toMatch(forcedColors);
   });
 });
