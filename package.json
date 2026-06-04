@@ -7,6 +7,12 @@
     "url": "https://github.com/saturn9studio/scribeframe.git"
   },
   "type": "module",
+  "sideEffects": [
+    "./src/styles.css"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -26,6 +32,8 @@
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "build": "npm run clean && tsc -p tsconfig.json",
     "test": "vitest run",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run build && npm run test",
     "browser:install": "playwright install chromium webkit",
     "browser:test": "playwright test -c playwright.config.ts",
     "demo": "vite --config demo/vite.config.ts",
