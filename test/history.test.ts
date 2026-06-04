@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  EditorPlugin,
   ModernEditor,
+  PluginId,
+  WidgetDecoration,
+  WidgetRenderer,
   createTransaction,
   firstPosition,
 } from "../src";
@@ -31,6 +35,70 @@ const typeText = (container: HTMLElement, text: string): void => {
     input.value = character;
     input.dispatchEvent(new Event("input", { bubbles: true }));
   });
+};
+
+const historyWidgetPlugin = (): EditorPlugin<null> => {
+  const renderer: WidgetRenderer<{ readonly text: string }> = {
+    mount(host, props, context) {
+      const input = document.createElement("textarea");
+      input.className = "history-widget-input";
+      input.value = props.text;
+      input.addEventListener("input", () => {
+        if (context.readOnly) return;
+        context.replaceSelf(input.value);
+      });
+      input.addEventListener("keydown", (event) => event.stopPropagation());
+      host.replaceChildren(input);
+
+      return {
+        update(nextProps) {
+          if (document.activeElement !== input) {
+            input.value = nextProps.text;
+          }
+        },
+        destroy() {
+          host.replaceChildren();
+        },
+      };
+    },
+  };
+
+  return {
+    id: new PluginId<null>("history-widget"),
+    init: () => null,
+    apply: () => null,
+    widgets: ({ doc }): readonly WidgetDecoration[] => [
+      {
+        key: "history-widget:editor",
+        placement: "block",
+        range: {
+          from: { paragraph: 0, offset: 0 },
+          to: {
+            paragraph: 0,
+            offset: doc.paragraphs[0]?.text.length ?? 0,
+          },
+        },
+        props: { text: doc.paragraphs[0]?.text ?? "" },
+        render: renderer,
+        selection: "block",
+      },
+    ],
+  };
+};
+
+const widgetInputFor = (container: HTMLElement): HTMLTextAreaElement => {
+  const input = container.querySelector<HTMLTextAreaElement>(
+    ".history-widget-input",
+  );
+  if (!input) throw new Error("History widget input not found");
+  return input;
+};
+
+const editWidgetText = (container: HTMLElement, text: string): void => {
+  const input = widgetInputFor(container);
+  input.focus();
+  input.value = text;
+  input.dispatchEvent(new Event("input", { bubbles: true }));
 };
 
 describe("editor history", () => {
@@ -203,6 +271,47 @@ describe("editor history", () => {
     container.remove();
   });
 
+  it("resets undo and redo when content is replaced programmatically", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ModernEditor(container, { content: "a" });
+
+    typeText(container, "b");
+    expect(editor.canUndo()).toBe(true);
+
+    editor.setContent("replacement");
+
+    expect(editor.getContent()).toBe("replacement");
+    expect(editor.canUndo()).toBe(false);
+    expect(editor.canRedo()).toBe(false);
+    editor.undo();
+    editor.redo();
+    expect(editor.getContent()).toBe("replacement");
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("does not resurrect redo after content is replaced following undo", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ModernEditor(container, { content: "a" });
+
+    typeText(container, "b");
+    editor.undo();
+    expect(editor.canRedo()).toBe(true);
+
+    editor.setContent("replacement");
+    editor.redo();
+
+    expect(editor.getContent()).toBe("replacement");
+    expect(editor.canUndo()).toBe(false);
+    expect(editor.canRedo()).toBe(false);
+
+    editor.destroy();
+    container.remove();
+  });
+
   it("batches continuous typing into one undo entry", () => {
     const container = document.createElement("div");
     document.body.append(container);
@@ -217,6 +326,61 @@ describe("editor history", () => {
 
     editor.redo();
     expect(editor.getContent()).toBe("abc");
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("batches repeated edits from the same widget into one undo entry", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ModernEditor(container, {
+      content: "widget",
+      plugins: [historyWidgetPlugin()],
+    });
+
+    editWidgetText(container, "widget edit");
+    editWidgetText(container, "widget edited");
+
+    expect(editor.getContent()).toBe("widget edited");
+    editor.undo();
+    expect(editor.getContent()).toBe("widget");
+    expect(editor.canUndo()).toBe(false);
+
+    editor.redo();
+    expect(editor.getContent()).toBe("widget edited");
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("keeps widget edit batches separate from surrounding editor typing", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ModernEditor(container, {
+      content: "base",
+      plugins: [historyWidgetPlugin()],
+    });
+
+    editor.selectRange({
+      from: { paragraph: 0, offset: 4 },
+      to: { paragraph: 0, offset: 4 },
+    });
+    typeText(container, "x");
+    editWidgetText(container, "widget");
+    editor.selectRange({
+      from: { paragraph: 0, offset: 6 },
+      to: { paragraph: 0, offset: 6 },
+    });
+    typeText(container, "y");
+
+    expect(editor.getContent()).toBe("widgety");
+    editor.undo();
+    expect(editor.getContent()).toBe("widget");
+    editor.undo();
+    expect(editor.getContent()).toBe("basex");
+    editor.undo();
+    expect(editor.getContent()).toBe("base");
 
     editor.destroy();
     container.remove();
