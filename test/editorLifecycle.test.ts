@@ -71,4 +71,21 @@ describe("editor lifecycle cleanup", () => {
 
     container.remove();
   });
+
+  it("configures the input proxy to suppress browser writing assistants", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ModernEditor(container, { content: "abc" });
+    const input = inputFor(container);
+
+    expect(input.spellcheck).toBe(false);
+    expect(input.getAttribute("autocomplete")).toBe("off");
+    expect(input.getAttribute("autocapitalize")).toBe("off");
+    expect(input.getAttribute("autocorrect")).toBe("off");
+    expect(input.getAttribute("data-ms-editor")).toBe("false");
+    expect(input.getAttribute("writingsuggestions")).toBe("false");
+
+    editor.destroy();
+    container.remove();
+  });
 });

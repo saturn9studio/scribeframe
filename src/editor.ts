@@ -268,6 +268,11 @@ export class ModernEditor {
     this.textarea = document.createElement("textarea");
     this.textarea.className = "s9-input-proxy";
     this.textarea.setAttribute("aria-label", `${this.ariaLabel()} input`);
+    this.textarea.setAttribute("autocomplete", "off");
+    this.textarea.setAttribute("autocapitalize", "off");
+    this.textarea.setAttribute("autocorrect", "off");
+    this.textarea.setAttribute("data-ms-editor", "false");
+    this.textarea.setAttribute("writingsuggestions", "false");
     this.textarea.spellcheck = false;
     this.container.append(this.textarea);
     this.syncAccessibilityState();
