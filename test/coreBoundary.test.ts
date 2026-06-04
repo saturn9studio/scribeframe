@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { cwd } from "node:process";
 import { describe, expect, it } from "vitest";
-import { ModernEditor, emptySyntaxSnapshot } from "../src";
+import { ScribeFrame, emptySyntaxSnapshot } from "../src";
 import {
   markdownPlugin,
   markdownSyntaxProvider,
@@ -19,13 +19,13 @@ const srcRoot = resolve(cwd(), "src");
 
 describe("scribeframe core boundary", () => {
   it("uses neutral syntax until an adapter provider is supplied", () => {
-    const coreEditor = new ModernEditor(document.createElement("div"), {
+    const coreEditor = new ScribeFrame(document.createElement("div"), {
       content: "# Heading",
     });
     expect(coreEditor.getSyntaxSnapshot()).toBe(emptySyntaxSnapshot);
     coreEditor.destroy();
 
-    const markdownEditor = new ModernEditor(document.createElement("div"), {
+    const markdownEditor = new ScribeFrame(document.createElement("div"), {
       content: "# Heading",
       syntaxProvider: markdownSyntaxProvider,
     });
@@ -39,7 +39,7 @@ describe("scribeframe core boundary", () => {
   it("requires Markdown plugins to be paired with the Markdown syntax provider", () => {
     expect(
       () =>
-        new ModernEditor(document.createElement("div"), {
+        new ScribeFrame(document.createElement("div"), {
           content: "# Heading",
           plugins: [markdownPlugin()],
         }),

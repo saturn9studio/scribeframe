@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  ModernEditor,
+  ScribeFrame,
   createTransaction,
 } from "../src";
 import { markdownPlugin, markdownSyntaxProvider } from "../demo/src/markdown";
@@ -65,7 +65,7 @@ const keyDown = (
 };
 
 const setSelection = (
-  editor: ModernEditor,
+  editor: ScribeFrame,
   anchor: { readonly paragraph: number; readonly offset: number },
   head: { readonly paragraph: number; readonly offset: number },
 ): void => {
@@ -94,7 +94,7 @@ describe("editor cursor and selection behavior", () => {
   it("moves the cursor up and down between paragraphs while preserving offset", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "abc\ndefg\nhi",
       syntaxProvider: markdownSyntaxProvider,
       plugins: [markdownPlugin()],
@@ -127,7 +127,7 @@ describe("editor cursor and selection behavior", () => {
   it("extends vertical selections with Shift+Arrow", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "abc\ndef",
       syntaxProvider: markdownSyntaxProvider,
       plugins: [markdownPlugin()],
@@ -150,7 +150,7 @@ describe("editor cursor and selection behavior", () => {
     const container = document.createElement("div");
     container.style.lineHeight = "20px";
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "abcdef" });
+    const editor = new ScribeFrame(container, { content: "abcdef" });
     const caretDocument = document as CaretPositionDocument;
     const originalCaretPositionFromPoint = caretDocument.caretPositionFromPoint;
     const originalRangeRect = Range.prototype.getBoundingClientRect;
@@ -189,7 +189,7 @@ describe("editor cursor and selection behavior", () => {
     const container = document.createElement("div");
     container.style.lineHeight = "20px";
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "abcdef" });
+    const editor = new ScribeFrame(container, { content: "abcdef" });
     const caretDocument = document as CaretPositionDocument;
     const originalCaretPositionFromPoint = caretDocument.caretPositionFromPoint;
     const originalRangeRect = Range.prototype.getBoundingClientRect;
@@ -232,7 +232,7 @@ describe("editor cursor and selection behavior", () => {
   it("collapses range selections to movement edges without Shift", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "abc\ndef",
       syntaxProvider: markdownSyntaxProvider,
       plugins: [markdownPlugin()],
@@ -260,7 +260,7 @@ describe("editor cursor and selection behavior", () => {
   it("honors Shift+Home and Shift+End", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "abcdef",
       syntaxProvider: markdownSyntaxProvider,
       plugins: [markdownPlugin()],
@@ -287,7 +287,7 @@ describe("editor cursor and selection behavior", () => {
   it("moves Home and End to visual line boundaries when text soft-wraps", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "abcdef" });
+    const editor = new ScribeFrame(container, { content: "abcdef" });
     const caretDocument = document as CaretPositionDocument;
     const originalCaretPositionFromPoint = caretDocument.caretPositionFromPoint;
     const originalRangeRect = Range.prototype.getBoundingClientRect;
@@ -334,7 +334,7 @@ describe("editor cursor and selection behavior", () => {
   it("supports document-boundary keyboard navigation", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "abc\ndef",
     });
 
@@ -369,7 +369,7 @@ describe("editor cursor and selection behavior", () => {
   it("allows cursor navigation in read-only mode without allowing edits", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "abc",
       syntaxProvider: markdownSyntaxProvider,
       plugins: [markdownPlugin()],
@@ -397,7 +397,7 @@ describe("editor cursor and selection behavior", () => {
   it("replaces a non-collapsed selection when text is inserted", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "abcdef",
       syntaxProvider: markdownSyntaxProvider,
       plugins: [markdownPlugin()],
@@ -421,7 +421,7 @@ describe("editor cursor and selection behavior", () => {
   it("selects the clicked word on double-click without starting a drag", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "alpha beta gamma",
     });
     const caretDocument = document as CaretPositionDocument;
@@ -474,7 +474,7 @@ describe("editor cursor and selection behavior", () => {
   it("falls back to the nearest paragraph edge when point caret APIs miss text", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "alpha beta",
     });
     const paragraph = container.querySelector<HTMLElement>(".s9-paragraph");
@@ -540,7 +540,7 @@ describe("editor cursor and selection behavior", () => {
   it("selects the clicked paragraph on triple-click", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "alpha beta gamma\nsecond paragraph",
     });
     const caretDocument = document as CaretPositionDocument;
@@ -576,7 +576,7 @@ describe("editor cursor and selection behavior", () => {
   it("extends selection during pointer drag", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "abcdef",
       syntaxProvider: markdownSyntaxProvider,
       plugins: [markdownPlugin()],

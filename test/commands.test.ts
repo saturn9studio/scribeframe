@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  ModernEditor,
+  ScribeFrame,
   PluginId,
   createTransaction,
   editorCommandNames,
@@ -33,7 +33,7 @@ describe("editor commands and keymaps", () => {
   it("executes built-in commands through the public command API", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "abc\ndef" });
+    const editor = new ScribeFrame(container, { content: "abc\ndef" });
 
     expect(editor.executeCommand(editorCommandNames.selectAll)).toBe(true);
     expect(editor.getSelection()).toEqual({
@@ -49,7 +49,7 @@ describe("editor commands and keymaps", () => {
   it("lets app keymaps override default key bindings", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "abc",
       commands: [
         {
@@ -83,7 +83,7 @@ describe("editor commands and keymaps", () => {
   it("falls back to default key bindings when a custom command declines", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "abc",
       commands: [{ name: "demo.noop", run: () => false }],
       keymap: [{ key: "Mod+A", command: "demo.noop" }],
@@ -124,7 +124,7 @@ describe("editor commands and keymaps", () => {
         keymap: [{ key: "Mod+K", command: "plugin.insert" }],
       },
     };
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "",
       plugins: [plugin],
     });
@@ -148,7 +148,7 @@ describe("editor commands and keymaps", () => {
         handleKeyDown: () => true,
       },
     };
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "",
       plugins: [plugin],
     });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ModernEditor } from "../src";
+import { ScribeFrame } from "../src";
 import {
   codeBlockWidgetPlugin,
   markdownSyntaxProvider,
@@ -43,7 +43,7 @@ describe("editor clipboard behavior", () => {
   it("copies the selected display text as plain text", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "alpha\nbeta" });
+    const editor = new ScribeFrame(container, { content: "alpha\nbeta" });
 
     editor.selectRange({
       from: { paragraph: 0, offset: 2 },
@@ -63,7 +63,7 @@ describe("editor clipboard behavior", () => {
   it("copies multi-paragraph ranges with paragraph-boundary newlines", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "one\ntwo\nthree\n" });
+    const editor = new ScribeFrame(container, { content: "one\ntwo\nthree\n" });
 
     editor.selectRange({
       from: { paragraph: 0, offset: 0 },
@@ -89,7 +89,7 @@ describe("editor clipboard behavior", () => {
     const container = document.createElement("div");
     document.body.append(container);
     const source = "```ts\nconst x = 1;\n```";
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: `${source}\nafter`,
       syntaxProvider: markdownSyntaxProvider,
       plugins: [codeBlockWidgetPlugin()],
@@ -115,7 +115,7 @@ describe("editor clipboard behavior", () => {
   it("cuts selected text as a separate undoable edit", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "alpha beta" });
+    const editor = new ScribeFrame(container, { content: "alpha beta" });
 
     editor.selectRange({
       from: { paragraph: 0, offset: 6 },
@@ -143,7 +143,7 @@ describe("editor clipboard behavior", () => {
   it("pastes plain text as a boundary edit and clears redo history", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "ab" });
+    const editor = new ScribeFrame(container, { content: "ab" });
 
     editor.selectRange({
       from: { paragraph: 0, offset: 1 },
@@ -169,7 +169,7 @@ describe("editor clipboard behavior", () => {
   it("prevents paste and cut mutations in read-only mode while preserving copy output", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "read only",
       readOnly: true,
     });
@@ -203,7 +203,7 @@ describe("editor clipboard behavior", () => {
   it("leaves empty clipboard events unhandled", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "abc" });
+    const editor = new ScribeFrame(container, { content: "abc" });
 
     const paste = clipboardEvent("paste");
     inputFor(container).dispatchEvent(paste.event);
@@ -219,7 +219,7 @@ describe("editor clipboard behavior", () => {
   it("suppresses html-only paste without mutating the editor", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "abc" });
+    const editor = new ScribeFrame(container, { content: "abc" });
     const input = inputFor(container);
 
     input.value = "stale";

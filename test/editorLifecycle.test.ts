@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ModernEditor } from "../src";
+import { ScribeFrame } from "../src";
 
 type CaretPositionDocument = Document & {
   caretPositionFromPoint?: (
@@ -32,7 +32,7 @@ describe("editor lifecycle cleanup", () => {
   it("detaches root pointer handlers on destroy", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "abc" });
+    const editor = new ScribeFrame(container, { content: "abc" });
     const staleTextNode = textNodeContaining(container, "abc");
     const caretDocument = document as CaretPositionDocument;
     const originalCaretPositionFromPoint = caretDocument.caretPositionFromPoint;
@@ -59,7 +59,7 @@ describe("editor lifecycle cleanup", () => {
   it("detaches input proxy handlers before removing the proxy", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "abc" });
+    const editor = new ScribeFrame(container, { content: "abc" });
     const input = inputFor(container);
 
     editor.destroy();
@@ -75,7 +75,7 @@ describe("editor lifecycle cleanup", () => {
   it("configures the input proxy to suppress browser writing assistants", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "abc" });
+    const editor = new ScribeFrame(container, { content: "abc" });
     const input = inputFor(container);
 
     expect(input.spellcheck).toBe(false);

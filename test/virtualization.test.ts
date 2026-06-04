@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   EditorPlugin,
-  ModernEditor,
+  ScribeFrame,
   PluginId,
   WidgetDecoration,
   WidgetRenderer,
@@ -138,7 +138,7 @@ describe("renderer virtualization and scrolling", () => {
     setViewport(container, 100);
     document.body.append(container);
 
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: lines(20),
       syntaxProvider: markdownSyntaxProvider,
       plugins: [markdownPlugin()],
@@ -166,7 +166,7 @@ describe("renderer virtualization and scrolling", () => {
     setViewport(container, 60);
     document.body.append(container);
 
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: lines(20),
       syntaxProvider: markdownSyntaxProvider,
       plugins: [markdownPlugin()],
@@ -201,7 +201,7 @@ describe("renderer virtualization and scrolling", () => {
     setViewport(container, 60);
     document.body.append(container);
 
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: lines(30),
       syntaxProvider: markdownSyntaxProvider,
       plugins: [markdownPlugin()],
@@ -224,7 +224,7 @@ describe("renderer virtualization and scrolling", () => {
     setViewport(container, 100);
     document.body.append(container);
 
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: lines(30),
       syntaxProvider: markdownSyntaxProvider,
       plugins: [markdownPlugin()],
@@ -255,7 +255,7 @@ describe("renderer virtualization and scrolling", () => {
     setViewport(container, 100);
     document.body.append(container);
 
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: lines(30),
       syntaxProvider: markdownSyntaxProvider,
       plugins: [markdownPlugin()],
@@ -287,7 +287,7 @@ describe("renderer virtualization and scrolling", () => {
     document.body.append(container);
     const counts = { mounts: 0, updates: 0, destroys: 0 };
 
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: lines(20),
       plugins: [viewportWidgetPlugin(counts)],
       virtualization: { estimateParagraphHeight: 20, overscan: 0 },
@@ -312,7 +312,7 @@ describe("renderer virtualization and scrolling", () => {
     document.body.append(container);
     const counts = { mounts: 0, updates: 0, destroys: 0 };
 
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: lines(20),
       plugins: [focusableViewportWidgetPlugin(counts)],
       virtualization: { estimateParagraphHeight: 20, overscan: 0 },

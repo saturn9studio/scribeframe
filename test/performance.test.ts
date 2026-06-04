@@ -16,7 +16,7 @@ vi.mock("../src/model", async (importOriginal) => {
 });
 
 import {
-  ModernEditor,
+  ScribeFrame,
   PluginId,
   createTransaction,
   type EditorPlugin,
@@ -106,7 +106,7 @@ describe("editor performance posture", () => {
     const content = lines(5_000);
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content });
+    const editor = new ScribeFrame(container, { content });
     modelSpies.documentToText.mockClear();
 
     editor.selectRange({
@@ -138,7 +138,7 @@ describe("editor performance posture", () => {
     document.body.append(container);
     const counts = { mounts: 0, updates: 0, destroys: 0 };
 
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: lines(10_000),
       plugins: [denseWidgetPlugin(counts, 10_000)],
       virtualization: { estimateParagraphHeight: 20, overscan: 1 },

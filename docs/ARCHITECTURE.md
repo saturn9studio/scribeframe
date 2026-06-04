@@ -79,7 +79,7 @@ than an undoable user edit.
 ## Commands and keymaps
 
 Keyboard behavior is routed through named editor commands. Apps can provide
-custom commands and key bindings through `ModernEditorOptions`, and plugins can
+custom commands and key bindings through `ScribeFrameOptions`, and plugins can
 provide commands plus plugin-scoped keymaps from current plugin state. Keydown
 resolution is ordered from most specific to most general: app keymap, plugin
 keymaps, legacy plugin `handleKeyDown`, then the built-in editor keymap.
@@ -104,7 +104,7 @@ normalization steps, and an optional `destroy` hook. `destroy` receives the late
 plugin state and editor snapshot so plugins can cancel async work and release
 external resources without reaching into editor internals.
 
-`ModernEditor.setPlugins()` reconfigures the plugin list at runtime. Plugin
+`ScribeFrame.setPlugins()` reconfigures the plugin list at runtime. Plugin
 state is keyed by `PluginId` object identity, so factories can return fresh
 plugin objects while preserving state by reusing the same exported id. When a
 plugin object changes for a retained id, the slot rebinds to the new behavior
@@ -136,7 +136,7 @@ virtualizes out, focus returns to the editor input proxy because the focused
 widget DOM is no longer live.
 
 Performance-sensitive editor paths avoid deriving whole-document text from the
-paragraph model during ordinary operation. `ModernEditor` keeps a cached display
+paragraph model during ordinary operation. `ScribeFrame` keeps a cached display
 content string and updates it from transaction display changes so selection-only
 dispatches, plugin snapshots, command lookup, history snapshots, and local text
 edits do not call serialization helpers. The renderer builds a per-render
