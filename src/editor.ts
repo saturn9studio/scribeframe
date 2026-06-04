@@ -64,7 +64,7 @@ export interface EditorSelectRangeOptions extends EditorRevealOptions {
 
 export interface EditorStateSnapshot extends EditorCommandSnapshot {}
 
-export interface ModernEditorOptions {
+export interface ScribeFrameOptions {
   readonly ariaLabel?: string;
   readonly content?: string;
   readonly doc?: EditorDocument;
@@ -151,7 +151,7 @@ const applyDisplayChanges = (
     content,
   );
 
-export class ModernEditor {
+export class ScribeFrame {
   private doc: EditorDocument;
   private content: string;
   private selection: Selection;
@@ -285,7 +285,7 @@ export class ModernEditor {
 
   constructor(
     private readonly container: HTMLElement,
-    private readonly options: ModernEditorOptions = {},
+    private readonly options: ScribeFrameOptions = {},
   ) {
     this.rootAttributeSnapshot = captureRootAttributes(container);
     this.content = options.doc ? documentToText(options.doc) : (options.content ?? "");

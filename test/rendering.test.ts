@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   EditorPlugin,
-  ModernEditor,
+  ScribeFrame,
   PluginId,
   WidgetDecoration,
   WidgetRenderer,
@@ -93,7 +93,7 @@ describe("rendering", () => {
     const container = document.createElement("div");
     document.body.append(container);
 
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "# Heading",
       syntaxProvider: markdownSyntaxProvider,
       plugins: [markdownPlugin()],
@@ -135,7 +135,7 @@ describe("rendering", () => {
     const container = document.createElement("div");
     document.body.append(container);
 
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "alpha beta",
       syntaxProvider: markdownSyntaxProvider,
       plugins: [markdownPlugin()],
@@ -184,7 +184,7 @@ describe("rendering", () => {
       rect(0, -40, 400, 400),
     );
 
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "alpha beta",
       scrollContainer,
     });
@@ -218,7 +218,7 @@ describe("rendering", () => {
 
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "alpha beta",
       plugins: [splitDecorationPlugin()],
     });
@@ -250,7 +250,7 @@ describe("rendering", () => {
     const container = document.createElement("div");
     document.body.append(container);
 
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "abc",
       syntaxProvider: markdownSyntaxProvider,
       plugins: [markdownPlugin()],
@@ -279,7 +279,7 @@ describe("rendering", () => {
     const container = document.createElement("div");
     document.body.append(container);
 
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "```ts\nconst x = 1;\n```",
       syntaxProvider: markdownSyntaxProvider,
       plugins: [codeBlockWidgetPlugin()],
@@ -317,7 +317,7 @@ describe("rendering", () => {
     const container = document.createElement("div");
     document.body.append(container);
 
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "alpha beta",
       plugins: [zeroLengthBlockWidgetPlugin()],
     });

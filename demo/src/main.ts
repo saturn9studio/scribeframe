@@ -1,4 +1,4 @@
-import { ModernEditor } from "@saturn9/scribeframe";
+import { ScribeFrame } from "@saturn9/scribeframe";
 import {
   codeBlockWidgetPlugin,
   markdownPlugin,
@@ -72,7 +72,7 @@ if (
 
 let readOnly = false;
 
-const editor = new ModernEditor(host, {
+const editor = new ScribeFrame(host, {
   content: initialMarkdown,
   syntaxProvider: markdownSyntaxProvider,
   plugins: [markdownPlugin(), codeBlockWidgetPlugin()],

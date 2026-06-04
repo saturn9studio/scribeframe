@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   EditorPlugin,
-  ModernEditor,
+  ScribeFrame,
   PluginId,
   WidgetDecoration,
   WidgetRenderer,
@@ -109,7 +109,7 @@ describe("editor history", () => {
   it("undoes and redoes text-changing transactions with selection restore", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "abc" });
+    const editor = new ScribeFrame(container, { content: "abc" });
 
     editor.dispatch(
       createTransaction(editor.getDocument(), editor.getSelection())
@@ -148,7 +148,7 @@ describe("editor history", () => {
   it("does not record selection-only transactions", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "abc" });
+    const editor = new ScribeFrame(container, { content: "abc" });
 
     editor.dispatch(
       createTransaction(editor.getDocument(), editor.getSelection())
@@ -168,7 +168,7 @@ describe("editor history", () => {
   it("clears redo history when a new edit follows undo", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "a" });
+    const editor = new ScribeFrame(container, { content: "a" });
 
     editor.dispatch(
       createTransaction(editor.getDocument(), editor.getSelection())
@@ -201,7 +201,7 @@ describe("editor history", () => {
   it("supports platform undo and redo shortcuts", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "a" });
+    const editor = new ScribeFrame(container, { content: "a" });
     const input = inputFor(container);
 
     input.value = "b";
@@ -227,7 +227,7 @@ describe("editor history", () => {
   it("disables undo and redo while read-only without dropping history", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "a" });
+    const editor = new ScribeFrame(container, { content: "a" });
 
     editor.dispatch(
       createTransaction(editor.getDocument(), editor.getSelection())
@@ -252,7 +252,7 @@ describe("editor history", () => {
   it("clears undo and redo stacks explicitly without changing the document", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "a" });
+    const editor = new ScribeFrame(container, { content: "a" });
 
     typeText(container, "b");
     editor.undo();
@@ -274,7 +274,7 @@ describe("editor history", () => {
   it("resets undo and redo when content is replaced programmatically", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "a" });
+    const editor = new ScribeFrame(container, { content: "a" });
 
     typeText(container, "b");
     expect(editor.canUndo()).toBe(true);
@@ -295,7 +295,7 @@ describe("editor history", () => {
   it("does not resurrect redo after content is replaced following undo", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "a" });
+    const editor = new ScribeFrame(container, { content: "a" });
 
     typeText(container, "b");
     editor.undo();
@@ -315,7 +315,7 @@ describe("editor history", () => {
   it("batches continuous typing into one undo entry", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "" });
+    const editor = new ScribeFrame(container, { content: "" });
 
     typeText(container, "abc");
 
@@ -334,7 +334,7 @@ describe("editor history", () => {
   it("batches repeated edits from the same widget into one undo entry", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "widget",
       plugins: [historyWidgetPlugin()],
     });
@@ -357,7 +357,7 @@ describe("editor history", () => {
   it("keeps widget edit batches separate from surrounding editor typing", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "base",
       plugins: [historyWidgetPlugin()],
     });
@@ -389,7 +389,7 @@ describe("editor history", () => {
   it("starts a new typing batch after a word boundary", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "" });
+    const editor = new ScribeFrame(container, { content: "" });
 
     typeText(container, "hello world");
 
@@ -408,7 +408,7 @@ describe("editor history", () => {
     vi.setSystemTime(0);
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "" });
+    const editor = new ScribeFrame(container, { content: "" });
 
     typeText(container, "a");
     vi.setSystemTime(2000);
@@ -427,7 +427,7 @@ describe("editor history", () => {
   it("closes typing batches when the cursor moves", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "" });
+    const editor = new ScribeFrame(container, { content: "" });
 
     typeText(container, "ab");
     keyDown(container, "ArrowLeft");
@@ -448,7 +448,7 @@ describe("editor history", () => {
   it("batches contiguous backspace deletes", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "abcd" });
+    const editor = new ScribeFrame(container, { content: "abcd" });
 
     editor.selectRange({
       from: { paragraph: 0, offset: 4 },
@@ -469,7 +469,7 @@ describe("editor history", () => {
   it("batches contiguous forward deletes", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "abcd" });
+    const editor = new ScribeFrame(container, { content: "abcd" });
 
     keyDown(container, "Delete");
     keyDown(container, "Delete");
@@ -486,7 +486,7 @@ describe("editor history", () => {
   it("keeps paste-like programmatic edits and line breaks separate from typing", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "" });
+    const editor = new ScribeFrame(container, { content: "" });
 
     typeText(container, "ab");
     editor.dispatch(

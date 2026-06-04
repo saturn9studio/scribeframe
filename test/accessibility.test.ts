@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { cwd } from "node:process";
 import { describe, expect, it } from "vitest";
-import { ModernEditor } from "../src";
+import { ScribeFrame } from "../src";
 import {
   codeBlockWidgetPlugin,
   markdownSyntaxProvider,
@@ -19,7 +19,7 @@ describe("renderer accessibility", () => {
     const container = document.createElement("div");
     document.body.append(container);
 
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       ariaLabel: "Draft body",
       content: "First paragraph\nSecond paragraph",
     });
@@ -49,7 +49,7 @@ describe("renderer accessibility", () => {
   it("reflects read-only mode in ARIA and the focus proxy", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "Read-only text",
       readOnly: true,
     });
@@ -74,7 +74,7 @@ describe("renderer accessibility", () => {
     container.setAttribute("tabindex", "7");
     document.body.append(container);
 
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       ariaLabel: "Mounted editor",
       content: "Body",
     });
@@ -98,7 +98,7 @@ describe("renderer accessibility", () => {
   it("delegates keyboard focus from the visible textbox to the input proxy", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       ariaLabel: "Keyboard target",
       content: "",
     });
@@ -114,7 +114,7 @@ describe("renderer accessibility", () => {
   it("gives code block widget controls accessible names", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "```ts\nconst x = 1;\n```",
       syntaxProvider: markdownSyntaxProvider,
       plugins: [codeBlockWidgetPlugin()],

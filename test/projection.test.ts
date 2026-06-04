@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createTransaction,
   documentFromText,
-  ModernEditor,
+  ScribeFrame,
   PluginId,
   type EditorPlugin,
   type SyntaxSnapshot,
@@ -81,7 +81,7 @@ describe("syntax snapshots", () => {
   });
 
   it("updates syntax for document changes but reuses it for selection-only transactions", () => {
-    const editor = new ModernEditor(document.createElement("div"), {
+    const editor = new ScribeFrame(document.createElement("div"), {
       content: "# Heading",
       syntaxProvider: markdownSyntaxProvider,
     });
@@ -133,7 +133,7 @@ describe("syntax snapshots", () => {
       },
     };
 
-    const editor = new ModernEditor(document.createElement("div"), {
+    const editor = new ScribeFrame(document.createElement("div"), {
       content: "Body",
       syntaxProvider: markdownSyntaxProvider,
       plugins: [plugin],

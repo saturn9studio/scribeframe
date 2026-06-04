@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  ModernEditor,
+  ScribeFrame,
 } from "../src";
 import {
   codeBlockWidgetPlugin,
@@ -14,7 +14,7 @@ describe("parser-backed markdown plugins", () => {
     const container = document.createElement("div");
     document.body.append(container);
 
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "  # Heading",
       syntaxProvider: markdownSyntaxProvider,
       plugins: [markdownPlugin()],
@@ -36,7 +36,7 @@ describe("parser-backed markdown plugins", () => {
     const container = document.createElement("div");
     document.body.append(container);
 
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "~~~ts\nconst x = 1;\n~~~",
       syntaxProvider: markdownSyntaxProvider,
       plugins: [codeBlockWidgetPlugin()],

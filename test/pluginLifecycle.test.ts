@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  ModernEditor,
+  ScribeFrame,
   PluginId,
   createTransaction,
   type EditorPlugin,
@@ -25,7 +25,7 @@ describe("plugin lifecycle", () => {
         destroyed.push({ content, count: state.count });
       },
     };
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "a",
       plugins: [plugin],
     });
@@ -65,7 +65,7 @@ describe("plugin lifecycle", () => {
       },
       apply: ({ state }) => state,
     };
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "start",
       plugins: [removedPlugin],
     });
@@ -115,7 +115,7 @@ describe("plugin lifecycle", () => {
         counts.removedDestroy += 1;
       },
     };
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "",
       plugins: [retainedPlugin, removedPlugin],
     });
@@ -155,7 +155,7 @@ describe("plugin lifecycle", () => {
             : state.count,
       }),
     });
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "",
       plugins: [plugin(1)],
     });
@@ -201,12 +201,12 @@ describe("plugin lifecycle", () => {
 
     expect(
       () =>
-        new ModernEditor(document.createElement("div"), {
+        new ScribeFrame(document.createElement("div"), {
           plugins: [plugin(), plugin()],
         }),
     ).toThrow("Duplicate plugin id: duplicate");
 
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       plugins: [retainedPlugin],
     });
     expect(() => editor.setPlugins([retainedPlugin, retainedPlugin])).toThrow(
@@ -233,7 +233,7 @@ describe("plugin lifecycle", () => {
       init: () => ({ value }),
       apply: ({ state }) => state,
     });
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       plugins: [plugin(firstId, "first"), plugin(secondId, "second")],
     });
 

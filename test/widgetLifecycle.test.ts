@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   EditorPlugin,
-  ModernEditor,
+  ScribeFrame,
   PluginId,
   WidgetDecoration,
   WidgetRenderer,
@@ -67,7 +67,7 @@ describe("widget lifecycle", () => {
     const container = document.createElement("div");
     document.body.append(container);
     const counts = { mounts: 0, updates: 0, destroys: 0 };
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "widget",
       plugins: [lifecyclePlugin(counts)],
     });
@@ -106,7 +106,7 @@ describe("widget lifecycle", () => {
   it("applies read-only state when code block widgets mount", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "```ts\nconst x = 1;\n```",
       syntaxProvider: markdownSyntaxProvider,
       plugins: [codeBlockWidgetPlugin()],
@@ -131,7 +131,7 @@ describe("widget focus", () => {
   it("preserves textarea focus when a focused widget dispatches source updates", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "```ts\nconst x = 1;\n```",
       syntaxProvider: markdownSyntaxProvider,
       plugins: [codeBlockWidgetPlugin()],

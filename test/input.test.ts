@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ModernEditor } from "../src";
+import { ScribeFrame } from "../src";
 
 const inputFor = (container: HTMLElement): HTMLTextAreaElement => {
   const input = container.querySelector<HTMLTextAreaElement>(".s9-input-proxy");
@@ -50,7 +50,7 @@ describe("editor input correctness", () => {
   it("commits beforeinput text data without relying on textarea value", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "" });
+    const editor = new ScribeFrame(container, { content: "" });
 
     const event = beforeInput(container, "insertText", "é");
 
@@ -68,7 +68,7 @@ describe("editor input correctness", () => {
   it("handles beforeinput line breaks and paste-style insertions as boundary edits", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "a" });
+    const editor = new ScribeFrame(container, { content: "a" });
 
     editor.selectRange({
       from: { paragraph: 0, offset: 1 },
@@ -91,7 +91,7 @@ describe("editor input correctness", () => {
     const container = document.createElement("div");
     document.body.append(container);
     const emoji = "👩‍💻";
-    const editor = new ModernEditor(container, { content: `a${emoji}b` });
+    const editor = new ScribeFrame(container, { content: `a${emoji}b` });
 
     editor.selectRange({
       from: { paragraph: 0, offset: `a${emoji}`.length },
@@ -113,7 +113,7 @@ describe("editor input correctness", () => {
   it("keeps composition text out of the document until compositionend", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "abc" });
+    const editor = new ScribeFrame(container, { content: "abc" });
     const input = inputFor(container);
 
     editor.selectRange({
@@ -140,7 +140,7 @@ describe("editor input correctness", () => {
   it("falls back to the composition buffer when compositionend has no data", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, { content: "" });
+    const editor = new ScribeFrame(container, { content: "" });
     const input = inputFor(container);
 
     input.dispatchEvent(composition("compositionstart", ""));
@@ -157,7 +157,7 @@ describe("editor input correctness", () => {
   it("prevents beforeinput mutations in read-only mode and clears the proxy buffer", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "abc",
       readOnly: true,
     });
@@ -177,7 +177,7 @@ describe("editor input correctness", () => {
   it("supports word-granularity navigation and deletion", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const editor = new ModernEditor(container, {
+    const editor = new ScribeFrame(container, {
       content: "alpha beta gamma",
     });
 
