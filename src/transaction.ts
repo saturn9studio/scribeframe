@@ -10,12 +10,12 @@ import {
   createDocument,
   normalizeRange,
   paragraph,
-} from "./model";
+} from "./model.js";
 import {
   TransactionMetaKey,
   TransactionMetaStore,
   emptyTransactionMeta,
-} from "./metadata";
+} from "./metadata.js";
 
 export type Step =
   | {

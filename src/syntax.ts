@@ -1,5 +1,5 @@
-import type { EditorDocument } from "./model";
-import type { DisplayChange } from "./transaction";
+import type { EditorDocument } from "./model.js";
+import type { DisplayChange } from "./transaction.js";
 
 export interface SyntaxSnapshot {
   readonly kind: string;

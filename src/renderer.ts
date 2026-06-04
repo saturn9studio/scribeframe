@@ -4,7 +4,7 @@ import {
   WidgetDecoration,
   WidgetHandle,
   WidgetKey,
-} from "./decorations";
+} from "./decorations.js";
 import {
   EditorDocument,
   Position,
@@ -16,9 +16,9 @@ import {
   positionFromOffset,
   selectionIsCollapsed,
   isSamePosition,
-} from "./model";
-import { type Transaction, createTransaction } from "./transaction";
-import { type HistoryEvent, historyEventMetaKey } from "./history";
+} from "./model.js";
+import { type Transaction, createTransaction } from "./transaction.js";
+import { type HistoryEvent, historyEventMetaKey } from "./history.js";
 
 interface TextSegment {
   readonly node: Text;

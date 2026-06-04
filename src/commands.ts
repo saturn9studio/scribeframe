@@ -1,6 +1,6 @@
-import type { EditorDocument, Selection } from "./model";
-import type { SyntaxSnapshot } from "./syntax";
-import type { Transaction } from "./transaction";
+import type { EditorDocument, Selection } from "./model.js";
+import type { SyntaxSnapshot } from "./syntax.js";
+import type { Transaction } from "./transaction.js";
 
 export interface EditorCommandSnapshot {
   readonly doc: EditorDocument;
