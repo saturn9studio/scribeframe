@@ -9,12 +9,10 @@ import {
   EditorDocument,
   Position,
   Selection,
-  absoluteOffset,
   clampPosition,
   collapsedSelection,
   comparePositions,
   normalizeRange,
-  paragraphAbsoluteRange,
   positionFromOffset,
   selectionIsCollapsed,
   isSamePosition,
@@ -44,6 +42,28 @@ interface WidgetFocusSnapshot {
 interface SelectionRect {
   readonly rect: DOMRect;
   readonly widgetKey?: WidgetKey;
+}
+
+type InlineDecoration = Extract<EditorDecoration, { kind: "inline" }>;
+type BlockDecoration = Extract<EditorDecoration, { kind: "block" }>;
+type RangeDecoration = Extract<EditorDecoration, { from: number; to: number }>;
+
+interface RenderIndex {
+  readonly paragraphStarts: readonly number[];
+  readonly blockDecorationsByParagraph: ReadonlyMap<
+    number,
+    readonly BlockDecoration[]
+  >;
+  readonly rangeDecorationsByParagraph: ReadonlyMap<
+    number,
+    readonly RangeDecoration[]
+  >;
+  readonly inlineDecorationsByParagraph: ReadonlyMap<
+    number,
+    readonly InlineDecoration[]
+  >;
+  readonly blockWidgetsByParagraph: ReadonlyMap<number, readonly WidgetDecoration[]>;
+  readonly blockWidgetCoverage: ReadonlySet<number>;
 }
 
 interface VirtualWindow {
@@ -111,11 +131,11 @@ const isRangeDecoration = (
   decoration.kind === "inline" || decoration.kind === "annotation";
 
 const classNamesForRange = (
-  decorations: readonly EditorDecoration[],
+  decorations: readonly RangeDecoration[],
   from: number,
   to: number,
 ): string[] =>
-  decorations.filter(isRangeDecoration).flatMap((decoration) => {
+  decorations.flatMap((decoration) => {
     if (decoration.to <= from || decoration.from >= to) return [];
     if (isInlineDecoration(decoration)) {
       return decoration.attrs.class ? [decoration.attrs.class] : [];
@@ -124,18 +144,14 @@ const classNamesForRange = (
   });
 
 const splitPointsForParagraph = (
-  doc: EditorDocument,
-  paragraphIndex: number,
-  decorations: readonly EditorDecoration[],
+  paragraphLength: number,
+  paragraphFrom: number,
+  decorations: readonly RangeDecoration[],
 ): number[] => {
-  const { from: paragraphFrom, to: paragraphTo } = paragraphAbsoluteRange(
-    doc,
-    paragraphIndex,
-  );
-  const paragraphLength = paragraphTo - paragraphFrom;
+  const paragraphTo = paragraphFrom + paragraphLength;
   const points = new Set<number>([0, paragraphLength]);
 
-  decorations.filter(isRangeDecoration).forEach((decoration) => {
+  decorations.forEach((decoration) => {
     if (decoration.to <= paragraphFrom || decoration.from >= paragraphTo) return;
     points.add(Math.max(0, decoration.from - paragraphFrom));
     points.add(Math.min(paragraphLength, decoration.to - paragraphFrom));
@@ -160,23 +176,189 @@ const setAttributes = (
 
 const setBlockAttributes = (
   element: HTMLElement,
-  decorations: readonly Extract<EditorDecoration, { kind: "block" }>[],
-  paragraphIndex: number,
+  decorations: readonly BlockDecoration[],
 ): void => {
-  decorations
-    .filter((decoration) => decoration.paragraph === paragraphIndex)
-    .forEach((decoration) => {
-      Object.entries(decoration.attrs).forEach(([name, value]) => {
-        if (name === "class") {
-          const classNames = value.split(/\s+/).filter(Boolean);
-          if (classNames.length > 0) {
-            element.classList.add(...classNames);
-          }
-          return;
+  decorations.forEach((decoration) => {
+    Object.entries(decoration.attrs).forEach(([name, value]) => {
+      if (name === "class") {
+        const classNames = value.split(/\s+/).filter(Boolean);
+        if (classNames.length > 0) {
+          element.classList.add(...classNames);
         }
-        element.setAttribute(name, value);
-      });
+        return;
+      }
+      element.setAttribute(name, value);
     });
+  });
+};
+
+const appendMapValue = <T>(
+  map: Map<number, T[]>,
+  key: number,
+  value: T,
+): void => {
+  const values = map.get(key);
+  if (values) {
+    values.push(value);
+  } else {
+    map.set(key, [value]);
+  }
+};
+
+const paragraphStartsForDocument = (doc: EditorDocument): readonly number[] => {
+  let offset = 0;
+  return doc.paragraphs.map((item) => {
+    const start = offset;
+    offset += item.text.length + 1;
+    return start;
+  });
+};
+
+const documentLength = (
+  doc: EditorDocument,
+  paragraphStarts: readonly number[],
+): number => {
+  const lastIndex = doc.paragraphs.length - 1;
+  if (lastIndex < 0) return 0;
+  return (
+    (paragraphStarts[lastIndex] ?? 0) +
+    (doc.paragraphs[lastIndex]?.text.length ?? 0)
+  );
+};
+
+const paragraphRangeFromStarts = (
+  doc: EditorDocument,
+  paragraphStarts: readonly number[],
+  paragraphIndex: number,
+): { readonly from: number; readonly to: number } => {
+  const from = paragraphStarts[paragraphIndex] ?? 0;
+  return {
+    from,
+    to: from + (doc.paragraphs[paragraphIndex]?.text.length ?? 0),
+  };
+};
+
+const paragraphIndexAtOffset = (
+  doc: EditorDocument,
+  paragraphStarts: readonly number[],
+  offset: number,
+): number => {
+  const paragraphCount = doc.paragraphs.length;
+  if (paragraphCount === 0) return 0;
+  const clamped = Math.max(
+    0,
+    Math.min(offset, documentLength(doc, paragraphStarts)),
+  );
+  let low = 0;
+  let high = paragraphCount - 1;
+  let result = 0;
+
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    const start = paragraphStarts[middle] ?? 0;
+    if (start <= clamped) {
+      result = middle;
+      low = middle + 1;
+    } else {
+      high = middle - 1;
+    }
+  }
+
+  return result;
+};
+
+const rangeParagraphSpan = (
+  doc: EditorDocument,
+  paragraphStarts: readonly number[],
+  from: number,
+  to: number,
+): { readonly from: number; readonly to: number } => {
+  const start = Math.min(from, to);
+  const end = Math.max(from, to);
+  return {
+    from: paragraphIndexAtOffset(doc, paragraphStarts, start),
+    to: paragraphIndexAtOffset(doc, paragraphStarts, Math.max(start, end - 1)),
+  };
+};
+
+const positionOffset = (
+  doc: EditorDocument,
+  paragraphStarts: readonly number[],
+  position: Position,
+): number => {
+  const clamped = clampPosition(doc, position);
+  return (paragraphStarts[clamped.paragraph] ?? 0) + clamped.offset;
+};
+
+const buildRenderIndex = (input: RendererInput): RenderIndex => {
+  const paragraphStarts = paragraphStartsForDocument(input.doc);
+  const blockDecorationsByParagraph = new Map<number, BlockDecoration[]>();
+  const rangeDecorationsByParagraph = new Map<number, RangeDecoration[]>();
+  const inlineDecorationsByParagraph = new Map<number, InlineDecoration[]>();
+  const blockWidgetsByParagraph = new Map<number, WidgetDecoration[]>();
+  const blockWidgetCoverage = new Set<number>();
+
+  input.decorations.forEach((decoration) => {
+    if (isBlockDecoration(decoration)) {
+      appendMapValue(blockDecorationsByParagraph, decoration.paragraph, decoration);
+      return;
+    }
+
+    if (!isRangeDecoration(decoration)) return;
+    const span = rangeParagraphSpan(
+      input.doc,
+      paragraphStarts,
+      decoration.from,
+      decoration.to,
+    );
+    for (
+      let paragraphIndex = span.from;
+      paragraphIndex <= span.to;
+      paragraphIndex += 1
+    ) {
+      appendMapValue(rangeDecorationsByParagraph, paragraphIndex, decoration);
+      if (isInlineDecoration(decoration)) {
+        appendMapValue(inlineDecorationsByParagraph, paragraphIndex, decoration);
+      }
+    }
+  });
+
+  input.widgets.forEach((widget) => {
+    if (widget.placement !== "block") return;
+
+    const from = positionOffset(input.doc, paragraphStarts, widget.range.from);
+    const to = positionOffset(input.doc, paragraphStarts, widget.range.to);
+    const span = rangeParagraphSpan(input.doc, paragraphStarts, from, to);
+    appendMapValue(
+      blockWidgetsByParagraph,
+      clampPosition(input.doc, widget.range.from).paragraph,
+      widget,
+    );
+
+    for (
+      let paragraphIndex = span.from;
+      paragraphIndex <= span.to;
+      paragraphIndex += 1
+    ) {
+      const paragraphRange = paragraphRangeFromStarts(
+        input.doc,
+        paragraphStarts,
+        paragraphIndex,
+      );
+      if (paragraphRange.to > from && paragraphRange.from < to) {
+        blockWidgetCoverage.add(paragraphIndex);
+      }
+    }
+  });
+
+  return {
+    paragraphStarts,
+    blockDecorationsByParagraph,
+    rangeDecorationsByParagraph,
+    inlineDecorationsByParagraph,
+    blockWidgetsByParagraph,
+    blockWidgetCoverage,
+  };
 };
 
 const widgetEditHistoryEvent = (key: WidgetKey): HistoryEvent => ({
@@ -195,6 +377,7 @@ export class Renderer {
   private readonly widgets = new Map<WidgetKey, WidgetRecord>();
   private currentInput: RendererInput | null = null;
   private currentWidgets = new Map<WidgetKey, WidgetDecoration>();
+  private currentIndex: RenderIndex | null = null;
   private currentWindow: VirtualWindow = {
     from: 0,
     to: 0,
@@ -244,8 +427,10 @@ export class Renderer {
 
   render(input: RendererInput): void {
     const focusSnapshot = this.captureWidgetFocus(input.widgets);
+    const index = buildRenderIndex(input);
     this.currentInput = input;
     this.currentWidgets = new Map(input.widgets.map((widget) => [widget.key, widget]));
+    this.currentIndex = index;
     this.segments.length = 0;
     const window = this.virtualWindow(input.doc);
     const mountedWidgetKeys = new Set<WidgetKey>();
@@ -265,16 +450,11 @@ export class Renderer {
       const item = input.doc.paragraphs[paragraphIndex];
       if (!item) continue;
 
-      input.widgets
-        .filter(
-          (widget) =>
-            widget.placement === "block" &&
-            widget.range.from.paragraph === paragraphIndex,
-        )
-        .forEach((widget) => {
-          mountedWidgetKeys.add(widget.key);
-          nextSurface.append(this.hostForWidget(widget, input));
-        });
+      const blockWidgets = index.blockWidgetsByParagraph.get(paragraphIndex) ?? [];
+      blockWidgets.forEach((widget) => {
+        mountedWidgetKeys.add(widget.key);
+        nextSurface.append(this.hostForWidget(widget, input));
+      });
 
       const paragraphElement = document.createElement("p");
       paragraphElement.className = "s9-paragraph";
@@ -283,19 +463,27 @@ export class Renderer {
       }
       setBlockAttributes(
         paragraphElement,
-        input.decorations.filter(isBlockDecoration),
-        paragraphIndex,
+        index.blockDecorationsByParagraph.get(paragraphIndex) ?? [],
       );
       paragraphElement.dataset.paragraph = `${paragraphIndex}`;
 
-      if (this.isParagraphCoveredByBlockWidget(input.doc, paragraphIndex, input.widgets)) {
+      if (index.blockWidgetCoverage.has(paragraphIndex)) {
         paragraphElement.classList.add("s9-covered-by-widget");
       }
 
-      const points = splitPointsForParagraph(
+      const paragraphRange = paragraphRangeFromStarts(
         input.doc,
+        index.paragraphStarts,
         paragraphIndex,
-        input.decorations,
+      );
+      const rangeDecorations =
+        index.rangeDecorationsByParagraph.get(paragraphIndex) ?? [];
+      const inlineDecorations =
+        index.inlineDecorationsByParagraph.get(paragraphIndex) ?? [];
+      const points = splitPointsForParagraph(
+        item.text.length,
+        paragraphRange.from,
+        rangeDecorations,
       );
 
       if (item.text.length === 0) {
@@ -308,17 +496,16 @@ export class Renderer {
           const span = document.createElement("span");
           const text = item.text.slice(point, nextPoint);
           const textNode = document.createTextNode(text);
-          const paragraphRange = paragraphAbsoluteRange(input.doc, paragraphIndex);
           const absFrom = paragraphRange.from + point;
           const absTo = paragraphRange.from + nextPoint;
           const classes = [
-            ...classNamesForRange(input.decorations, absFrom, absTo),
+            ...classNamesForRange(rangeDecorations, absFrom, absTo),
           ];
 
           if (classes.length > 0) span.className = classes.join(" ");
           setAttributes(
             span,
-            input.decorations.filter(isInlineDecoration),
+            inlineDecorations,
             absFrom,
             absTo,
           );
@@ -357,6 +544,7 @@ export class Renderer {
     this.widgets.forEach((record) => record.handle.destroy());
     this.widgets.clear();
     this.currentWidgets.clear();
+    this.currentIndex = null;
     this.segments.length = 0;
     this.paragraphHeights.clear();
     this.currentInput = null;
@@ -811,20 +999,6 @@ export class Renderer {
     });
   }
 
-  private isParagraphCoveredByBlockWidget(
-    doc: EditorDocument,
-    paragraphIndex: number,
-    widgets: readonly WidgetDecoration[],
-  ): boolean {
-    const range = paragraphAbsoluteRange(doc, paragraphIndex);
-    return widgets.some((widget) => {
-      if (widget.placement !== "block") return false;
-      const widgetFrom = absoluteOffset(doc, widget.range.from);
-      const widgetTo = absoluteOffset(doc, widget.range.to);
-      return range.to > widgetFrom && range.from < widgetTo;
-    });
-  }
-
   private updateSelectionOverlay(input: RendererInput): void {
     this.selectionLayer.replaceChildren();
     if (selectionIsCollapsed(input.selection)) return;
@@ -846,27 +1020,35 @@ export class Renderer {
 
   private textSelectionRects(input: RendererInput): SelectionRect[] {
     const range = normalizeRange(input.selection);
+    const fromParagraph = Math.max(range.from.paragraph, this.currentWindow.from);
+    const toParagraph = Math.min(range.to.paragraph, this.currentWindow.to - 1);
+    const rects: SelectionRect[] = [];
 
-    return input.doc.paragraphs.flatMap((item, paragraphIndex) => {
+    for (
+      let paragraphIndex = fromParagraph;
+      paragraphIndex <= toParagraph;
+      paragraphIndex += 1
+    ) {
+      const item = input.doc.paragraphs[paragraphIndex];
+      if (!item) continue;
       const fromOffset =
         paragraphIndex === range.from.paragraph ? range.from.offset : 0;
       const toOffset =
         paragraphIndex === range.to.paragraph ? range.to.offset : item.text.length;
 
-      if (paragraphIndex < range.from.paragraph || paragraphIndex > range.to.paragraph) {
-        return [];
-      }
-
       if (fromOffset < toOffset) {
-        return this.rectsForParagraphRange(paragraphIndex, fromOffset, toOffset);
+        rects.push(
+          ...this.rectsForParagraphRange(paragraphIndex, fromOffset, toOffset),
+        );
+        continue;
       }
 
       if (this.shouldPaintEmptyParagraph(input.doc, paragraphIndex, range)) {
-        return this.fallbackParagraphSelectionRect(paragraphIndex);
+        rects.push(...this.fallbackParagraphSelectionRect(paragraphIndex));
       }
+    }
 
-      return [];
-    });
+    return rects;
   }
 
   private rectsForParagraphRange(
@@ -931,20 +1113,23 @@ export class Renderer {
   }
 
   private widgetSelectionRects(input: RendererInput): SelectionRect[] {
+    const index = this.currentIndex ?? buildRenderIndex(input);
     const range = normalizeRange(input.selection);
-    const selectionFrom = absoluteOffset(input.doc, range.from);
-    const selectionTo = absoluteOffset(input.doc, range.to);
+    const selectionFrom = positionOffset(input.doc, index.paragraphStarts, range.from);
+    const selectionTo = positionOffset(input.doc, index.paragraphStarts, range.to);
 
-    return input.widgets.flatMap((widget) => {
+    return [...this.widgets.entries()].flatMap(([widgetKey, record]) => {
+      const widget = this.currentWidgets.get(widgetKey);
+      if (!widget) return [];
       if (widget.selection === "inline") return [];
 
-      const widgetFrom = absoluteOffset(input.doc, widget.range.from);
-      const widgetTo = absoluteOffset(input.doc, widget.range.to);
+      const widgetFrom = positionOffset(input.doc, index.paragraphStarts, widget.range.from);
+      const widgetTo = positionOffset(input.doc, index.paragraphStarts, widget.range.to);
       if (widgetTo <= selectionFrom || widgetFrom >= selectionTo) return [];
 
-      const rect = this.widgets.get(widget.key)?.host.getBoundingClientRect();
+      const rect = record.host.getBoundingClientRect();
       if (!rect || (rect.width === 0 && rect.height === 0)) return [];
-      return [{ rect, widgetKey: widget.key }];
+      return [{ rect, widgetKey }];
     });
   }
 

@@ -135,6 +135,16 @@ renderer-owned lifecycle destroys offscreen widget hosts. If the focused widget
 virtualizes out, focus returns to the editor input proxy because the focused
 widget DOM is no longer live.
 
+Performance-sensitive editor paths avoid deriving whole-document text from the
+paragraph model during ordinary operation. `ModernEditor` keeps a cached display
+content string and updates it from transaction display changes so selection-only
+dispatches, plugin snapshots, command lookup, history snapshots, and local text
+edits do not call serialization helpers. The renderer builds a per-render
+paragraph index for block decorations, range decorations, and block widgets, so
+visible paragraph output and selection painting are bounded by the rendered
+window and selected span instead of repeatedly scanning every decoration or
+widget in the document.
+
 The editor root owns the accessible textbox semantics for the whole surface:
 `role="textbox"`, `aria-multiline="true"`, configurable `aria-label`,
 synchronized `aria-readonly`, and a focusable `tabindex`. The root is the only
