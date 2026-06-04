@@ -3,7 +3,7 @@ import {
   createTransaction,
   documentFromText,
   ModernEditor,
-  PluginKey,
+  PluginId,
   type EditorPlugin,
   type SyntaxSnapshot,
 } from "../src";
@@ -121,7 +121,7 @@ describe("syntax snapshots", () => {
     const initSnapshots: SyntaxSnapshot[] = [];
     const snapshots: SyntaxSnapshot[] = [];
     const plugin: EditorPlugin<null> = {
-      key: new PluginKey<null>("syntax-observer"),
+      id: new PluginId<null>("syntax-observer"),
       init(context) {
         initSnapshots.push(context.syntax);
         return null;

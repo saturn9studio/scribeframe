@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ModernEditor,
-  PluginKey,
+  PluginId,
   createTransaction,
   editorCommandNames,
   firstPosition,
@@ -104,7 +104,7 @@ describe("editor commands and keymaps", () => {
     const container = document.createElement("div");
     document.body.append(container);
     const plugin: EditorPlugin<{ readonly text: string }> = {
-      key: new PluginKey("insert-plugin"),
+      id: new PluginId("insert-plugin"),
       init: () => ({ text: "plugin" }),
       apply: ({ state }) => state,
       commands: ({ state }) => [

@@ -35,7 +35,7 @@ import {
 } from "./model";
 import {
   EditorPlugin,
-  PluginKey,
+  PluginId,
   PluginSlot,
   createPluginSlot,
 } from "./plugin";
@@ -301,8 +301,8 @@ export class ModernEditor {
     return this.renderer.getScrollState();
   }
 
-  getPluginState<S>(key: PluginKey<S>): S | undefined {
-    return this.slots.find((slot) => slot.key.name === key.name)?.getState() as
+  getPluginState<S>(id: PluginId<S>): S | undefined {
+    return this.slots.find((slot) => slot.id.name === id.name)?.getState() as
       | S
       | undefined;
   }
