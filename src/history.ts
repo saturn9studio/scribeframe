@@ -8,6 +8,7 @@ export type HistoryEvent =
   | { readonly kind: "typing"; readonly text: string }
   | { readonly kind: "deleteBackward" }
   | { readonly kind: "deleteForward" }
+  | { readonly kind: "widgetEdit"; readonly source: string }
   | { readonly kind: "boundary" };
 
 export const historyEventMetaKey =
@@ -34,7 +35,11 @@ export interface EditorHistoryOptions {
   readonly mergeWindowMs?: number;
 }
 
-type BatchKind = "typing" | "deleteBackward" | "deleteForward";
+type BatchKind =
+  | "typing"
+  | "deleteBackward"
+  | "deleteForward"
+  | `widgetEdit:${string}`;
 
 interface HistoryBatch {
   readonly kind: BatchKind;
@@ -172,6 +177,12 @@ export class EditorHistory {
         return { kind: "deleteBackward", updatedAt: timestamp, open: true };
       case "deleteForward":
         return { kind: "deleteForward", updatedAt: timestamp, open: true };
+      case "widgetEdit":
+        return {
+          kind: `widgetEdit:${event.source}`,
+          updatedAt: timestamp,
+          open: true,
+        };
       case "boundary":
         return undefined;
     }

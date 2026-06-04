@@ -20,6 +20,7 @@ import {
   isSamePosition,
 } from "./model";
 import { type Transaction, createTransaction } from "./transaction";
+import { type HistoryEvent, historyEventMetaKey } from "./history";
 
 interface TextSegment {
   readonly node: Text;
@@ -177,6 +178,11 @@ const setBlockAttributes = (
       });
     });
 };
+
+const widgetEditHistoryEvent = (key: WidgetKey): HistoryEvent => ({
+  kind: "widgetEdit",
+  source: key,
+});
 
 export class Renderer {
   private surface: HTMLElement;
@@ -692,6 +698,7 @@ export class Renderer {
         this.actions.dispatch(
           createTransaction(input.doc, input.selection)
             .replaceRange(widget.range.from, widget.range.to, text)
+            .setMeta(historyEventMetaKey, widgetEditHistoryEvent(key))
             .build(),
         );
       },
@@ -702,6 +709,7 @@ export class Renderer {
         this.actions.dispatch(
           createTransaction(input.doc, input.selection)
             .replaceRange(widget.contentRange.from, widget.contentRange.to, text)
+            .setMeta(historyEventMetaKey, widgetEditHistoryEvent(key))
             .build(),
         );
       },
