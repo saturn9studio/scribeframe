@@ -1,6 +1,6 @@
-import { EditorDocument, Position, Range } from "./model";
-import type { SyntaxSnapshot } from "./syntax";
-import { Transaction } from "./transaction";
+import { EditorDocument, Position, Range } from "./model.js";
+import type { SyntaxSnapshot } from "./syntax.js";
+import { Transaction } from "./transaction.js";
 
 export type PluginName = string;
 export type WidgetKey = `${PluginName}:${string}`;
@@ -98,7 +98,7 @@ export const emptyRenderOutput = (): RenderOutput => ({
 
 export interface EditorSnapshot {
   readonly doc: EditorDocument;
-  readonly selection: import("./model").Selection;
+  readonly selection: import("./model.js").Selection;
   readonly content: string;
   readonly readOnly: boolean;
   readonly syntax: SyntaxSnapshot;

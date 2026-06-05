@@ -3,10 +3,10 @@ import {
   EditorSnapshot,
   ExtensionInstance,
   WidgetDecoration,
-} from "./decorations";
-import type { EditorCommand, EditorKeyBinding } from "./commands";
-import { EditorDocument, Selection } from "./model";
-import { Step, Transaction } from "./transaction";
+} from "./decorations.js";
+import type { EditorCommand, EditorKeyBinding } from "./commands.js";
+import { EditorDocument, Selection } from "./model.js";
+import { Step, Transaction } from "./transaction.js";
 
 export class PluginId<S> {
   readonly state?: S;

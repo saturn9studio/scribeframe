@@ -1,7 +1,7 @@
-import { createTransactionMetaKey, emptyTransactionMeta } from "./metadata";
-import type { EditorDocument, Selection } from "./model";
-import type { SyntaxSnapshot } from "./syntax";
-import type { DisplayChange, Transaction } from "./transaction";
+import { createTransactionMetaKey, emptyTransactionMeta } from "./metadata.js";
+import type { EditorDocument, Selection } from "./model.js";
+import type { SyntaxSnapshot } from "./syntax.js";
+import type { DisplayChange, Transaction } from "./transaction.js";
 
 export type HistoryEvent =
   | { readonly kind: "typing"; readonly text: string }

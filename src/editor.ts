@@ -6,14 +6,14 @@ import {
   type EditorCommandContext,
   type EditorCommandSnapshot,
   type EditorKeyBinding,
-} from "./commands";
-import { RenderOutput } from "./decorations";
+} from "./commands.js";
+import { RenderOutput } from "./decorations.js";
 import {
   EditorHistory,
   historyEventMetaKey,
   type HistoryEvent,
   type HistorySnapshot,
-} from "./history";
+} from "./history.js";
 import {
   EditorDocument,
   Position,
@@ -34,25 +34,25 @@ import {
   selectionIsCollapsed,
   textInRange,
   wordRangeAtPosition,
-} from "./model";
+} from "./model.js";
 import {
   EditorPlugin,
   PluginId,
   PluginSlot,
   createPluginSlot,
-} from "./plugin";
+} from "./plugin.js";
 import {
   Renderer,
   type RendererRevealOptions,
   type RendererScrollState,
   type RendererVirtualizationOptions,
-} from "./renderer";
+} from "./renderer.js";
 import {
   emptySyntaxProvider,
   type SyntaxProvider,
   type SyntaxSnapshot,
-} from "./syntax";
-import { Transaction, createTransaction, type DisplayChange } from "./transaction";
+} from "./syntax.js";
+import { Transaction, createTransaction, type DisplayChange } from "./transaction.js";
 
 export type EditorVirtualizationOptions = RendererVirtualizationOptions;
 export type EditorRevealOptions = RendererRevealOptions;
