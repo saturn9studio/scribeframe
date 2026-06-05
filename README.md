@@ -28,8 +28,6 @@ npm run build -w=@saturn9/scribeframe
 npm run test -w=@saturn9/scribeframe
 ```
 
-## Licensing note
+## License
 
-The package is marked `UNLICENSED` until Saturn9 chooses the final source-available
-license. The intended future license is free for open-source use but not for
-commercial use.
+Scribeframe is licensed under the MIT License. See [LICENSE](LICENSE).

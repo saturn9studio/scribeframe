@@ -41,7 +41,7 @@
     "demo:build": "vite build --config demo/vite.config.ts"
   },
   "author": "Saturn9 LLC",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "devDependencies": {
     "@playwright/test": "^1.60.0",
     "@saturn9/markoffset": "0.1.0",
