@@ -21,7 +21,8 @@ code outside the core package source, not hardcoded into the runtime.
 6. **Plugins**: isolated state slices, explicit teardown, runtime
    reconfiguration, plus pure decoration/widget output.
 7. **Renderer**: virtualized DOM output, virtual caret, selection painting,
-   scrolling geometry, and widget mount/update/destroy.
+   scrolling geometry, widget mount/update/destroy, and CSS-variable driven
+   visual defaults.
 8. **Input manager**: focus-proxy textarea, keyboard editing, clipboard, and
    pointer-to-position mapping.
 9. **Example integrations**: demo code can provide syntax providers, projections,
@@ -152,8 +153,11 @@ tab stop; when it receives focus, the editor moves focus to the hidden input
 proxy so keyboard input still follows the native textarea event path while
 `:focus-within` keeps focus visible on the rendered editor. Visual selection and
 caret overlays are marked `aria-hidden` because the engine's internal selection
-state is authoritative. Core styles include reduced-motion handling for caret
-blink and forced-colors affordances for focus, caret, and selection overlays.
+state is authoritative. Core styles expose CSS custom properties for typography,
+paragraph spacing, focus outline, caret, selection, and surface colors so host
+apps can theme the renderer without replacing internals. Defaults preserve the
+standalone editor look, and forced-colors affordances for focus, caret, and
+selection overlays remain owned by Scribeframe.
 Destroying an editor removes renderer-owned DOM and restores pre-existing host
 accessibility attributes and editor classes.
 
