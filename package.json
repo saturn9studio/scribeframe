@@ -32,6 +32,7 @@
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "build": "npm run clean && tsc -p tsconfig.json",
     "test": "vitest run",
+    "verify": "npm run demo:typecheck && npm run test && npm run build && npm run demo:build && npm run browser:test",
     "prepack": "npm run build",
     "prepublishOnly": "npm run build && npm run test",
     "browser:install": "playwright install chromium webkit",
