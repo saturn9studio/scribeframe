@@ -11,6 +11,7 @@ import {
   PluginId,
   textInRange,
   type EditorCommand,
+  type EditorInteraction,
   type EditorPlugin,
   type SyntaxProvider,
   type WidgetRenderer,
@@ -236,11 +237,32 @@ const counterPlugin = (): EditorPlugin<CounterState> => ({
 | `destroy?(context)` | Releases external resources when removed or editor is destroyed. |
 | `props.keymap` | Plugin-scoped key bindings. |
 | `props.handleKeyDown(context)` | Last plugin-level chance to handle a keydown before built-ins. |
+| `props.handleInteraction(context)` | Handles synthesized rendered interactions such as activation on decorations or widgets. |
 
 Plugin contexts include `doc`, `selection`, `content`, `readOnly`, `syntax`, and
 the plugin `state`. Apply contexts also include `previousDoc`,
-`previousSelection`, and `transaction`. Command/input contexts expose
+`previousSelection`, and `transaction`. Command/input/interaction contexts expose
 `dispatch(transaction)`.
+
+### Rendered interactions
+
+`EditorInteraction` is format-agnostic. It is synthesized by the editor's
+selection-owned pointer path, so it remains reliable even when native browser
+`click` events are suppressed or the rendered surface is replaced between
+`mousedown` and `mouseup`.
+
+| Field | Description |
+| --- | --- |
+| `type` | Currently `"activate"` for a click-like activation. |
+| `event` | The native `MouseEvent` that completed the interaction. |
+| `position` | The document position at the pointer, when one can be resolved. |
+| `targets` | Rendered decoration and widget targets under the pointer. |
+| `decorations` | Decoration targets with the original decoration object and range. |
+| `widgets` | Widget targets with key, widget description, and range. |
+| `modifiers` | `alt`, `ctrl`, `meta`, and `shift` modifier state. |
+
+Scribeframe does not interpret target semantics. A Markdown adapter can, for
+example, detect a link by inspecting the attrs of an inline decoration it owns.
 
 `PluginId` is identity-based: reuse the same exported id object to preserve state
 across `setPlugins()` reconfiguration.

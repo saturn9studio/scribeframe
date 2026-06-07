@@ -19,6 +19,11 @@ import {
 } from "./model.js";
 import { type Transaction, createTransaction } from "./transaction.js";
 import { type HistoryEvent, historyEventMetaKey } from "./history.js";
+import type {
+  DecorationInteractionTarget,
+  RenderedInteractionHit,
+  WidgetInteractionTarget,
+} from "./interaction.js";
 
 interface TextSegment {
   readonly node: Text;
@@ -511,6 +516,7 @@ export class Renderer {
           );
           span.dataset.paragraph = `${paragraphIndex}`;
           span.dataset.from = `${point}`;
+          span.dataset.to = `${nextPoint}`;
           span.append(textNode);
           paragraphElement.append(span);
           this.segments.push({
@@ -562,6 +568,24 @@ export class Renderer {
     return {
       paragraph: segment.paragraph,
       offset: Math.min(segment.to, segment.from + caret.offset),
+    };
+  }
+
+  interactionAtPoint(x: number, y: number): RenderedInteractionHit {
+    const input = this.currentInput;
+    if (!input) {
+      return { position: null, targets: [], decorations: [], widgets: [] };
+    }
+
+    const position = this.positionAtPoint(x, y);
+    const index = this.currentIndex ?? buildRenderIndex(input);
+    const decorations = this.decorationTargetsAtPoint(input, index, x, y);
+    const widgets = this.widgetTargetsAtPoint(x, y);
+    return {
+      position,
+      targets: [...decorations, ...widgets],
+      decorations,
+      widgets,
     };
   }
 
@@ -980,6 +1004,154 @@ export class Renderer {
       snapshot.element.value.length,
     );
     snapshot.element.setSelectionRange(selectionStart, selectionEnd);
+  }
+
+  private elementsAtPoint(x: number, y: number): readonly Element[] {
+    const ownerDocument = this.root.ownerDocument;
+    if (typeof ownerDocument.elementsFromPoint === "function") {
+      return ownerDocument.elementsFromPoint(x, y);
+    }
+
+    const element =
+      typeof ownerDocument.elementFromPoint === "function"
+        ? ownerDocument.elementFromPoint(x, y)
+        : null;
+    return element ? [element] : [];
+  }
+
+  private decorationTargetsAtPoint(
+    input: RendererInput,
+    index: RenderIndex,
+    x: number,
+    y: number,
+  ): readonly DecorationInteractionTarget[] {
+    const seen = new Set<EditorDecoration>();
+    const targets: DecorationInteractionTarget[] = [];
+
+    this.elementsAtPoint(x, y).forEach((element) => {
+      if (!this.root.contains(element)) return;
+
+      const textSegmentElement = element.closest<HTMLElement>(
+        "[data-paragraph][data-from][data-to]",
+      );
+      if (textSegmentElement) {
+        this.addRangeDecorationTargetsForElement(
+          targets,
+          seen,
+          input,
+          index,
+          textSegmentElement,
+        );
+      }
+
+      const paragraphElement = element.closest<HTMLElement>(
+        ".s9-paragraph[data-paragraph]",
+      );
+      if (paragraphElement) {
+        this.addBlockDecorationTargetsForElement(
+          targets,
+          seen,
+          input,
+          index,
+          paragraphElement,
+        );
+      }
+    });
+
+    return targets;
+  }
+
+  private addRangeDecorationTargetsForElement(
+    targets: DecorationInteractionTarget[],
+    seen: Set<EditorDecoration>,
+    input: RendererInput,
+    index: RenderIndex,
+    element: HTMLElement,
+  ): void {
+    const paragraphIndex = Number(element.dataset.paragraph);
+    const from = Number(element.dataset.from);
+    const to = Number(element.dataset.to);
+    const paragraphStart = index.paragraphStarts[paragraphIndex];
+    if (
+      !Number.isFinite(paragraphIndex) ||
+      !Number.isFinite(from) ||
+      !Number.isFinite(to) ||
+      paragraphStart === undefined
+    ) {
+      return;
+    }
+
+    const segmentFrom = paragraphStart + from;
+    const segmentTo = paragraphStart + to;
+    const decorations = index.rangeDecorationsByParagraph.get(paragraphIndex) ?? [];
+    decorations.forEach((decoration) => {
+      if (seen.has(decoration)) return;
+      if (decoration.to <= segmentFrom || decoration.from >= segmentTo) return;
+
+      seen.add(decoration);
+      targets.push({
+        kind: "decoration",
+        decoration,
+        range: {
+          from: positionFromOffset(input.doc, decoration.from),
+          to: positionFromOffset(input.doc, decoration.to),
+        },
+      });
+    });
+  }
+
+  private addBlockDecorationTargetsForElement(
+    targets: DecorationInteractionTarget[],
+    seen: Set<EditorDecoration>,
+    input: RendererInput,
+    index: RenderIndex,
+    element: HTMLElement,
+  ): void {
+    const paragraphIndex = Number(element.dataset.paragraph);
+    if (!Number.isFinite(paragraphIndex)) return;
+
+    const paragraph = input.doc.paragraphs[paragraphIndex];
+    if (!paragraph) return;
+
+    const decorations = index.blockDecorationsByParagraph.get(paragraphIndex) ?? [];
+    decorations.forEach((decoration) => {
+      if (seen.has(decoration)) return;
+
+      seen.add(decoration);
+      targets.push({
+        kind: "decoration",
+        decoration,
+        range: {
+          from: { paragraph: paragraphIndex, offset: 0 },
+          to: { paragraph: paragraphIndex, offset: paragraph.text.length },
+        },
+      });
+    });
+  }
+
+  private widgetTargetsAtPoint(
+    x: number,
+    y: number,
+  ): readonly WidgetInteractionTarget[] {
+    const seen = new Set<WidgetKey>();
+    return this.elementsAtPoint(x, y).flatMap((element) => {
+      if (!this.root.contains(element)) return [];
+
+      const host = element.closest<HTMLElement>(".s9-widget[data-widget-key]");
+      const key = host?.dataset.widgetKey as WidgetKey | undefined;
+      if (!key || seen.has(key)) return [];
+
+      const widget = this.currentWidgets.get(key);
+      if (!widget) return [];
+
+      seen.add(key);
+      return [{
+        kind: "widget" as const,
+        key,
+        widget,
+        range: widget.range,
+      }];
+    });
   }
 
   private requireInput(): RendererInput {

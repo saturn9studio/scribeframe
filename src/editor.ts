@@ -47,6 +47,11 @@ import {
   type RendererScrollState,
   type RendererVirtualizationOptions,
 } from "./renderer.js";
+import type {
+  EditorInteraction,
+  EditorInteractionModifiers,
+  EditorInteractionType,
+} from "./interaction.js";
 import {
   emptySyntaxProvider,
   type SyntaxProvider,
@@ -81,6 +86,13 @@ export interface ScribeFrameOptions {
 }
 
 type TextGranularity = "grapheme" | "word";
+
+interface InteractionPress {
+  readonly x: number;
+  readonly y: number;
+}
+
+const activationMovementTolerance = 4;
 
 const beforeInputMutations = new Set([
   "deleteContentBackward",
@@ -168,6 +180,7 @@ export class ScribeFrame {
   private committedCompositionText = "";
   private destroyed = false;
   private selectionDragAnchor: Position | null = null;
+  private interactionPress: InteractionPress | null = null;
   private preferredSelectionX: number | null = null;
 
   private readonly handleSelectionDragMove = (event: MouseEvent): void => {
@@ -193,9 +206,24 @@ export class ScribeFrame {
     document.removeEventListener("mouseup", this.handleSelectionDragEnd);
   };
 
+  private readonly handleInteractionMouseUp = (event: MouseEvent): void => {
+    const press = this.interactionPress;
+    this.clearInteractionPress();
+    if (this.destroyed || !press || event.button !== 0) return;
+    if (
+      Math.abs(event.clientX - press.x) > activationMovementTolerance ||
+      Math.abs(event.clientY - press.y) > activationMovementTolerance
+    ) {
+      return;
+    }
+
+    this.handleInteraction("activate", event);
+  };
+
   private readonly handleContainerMouseDown = (event: MouseEvent): void => {
     if (this.destroyed) return;
     if (event.button !== 0) return;
+    this.captureInteractionPress(event);
     const target = event.target;
     if (target instanceof HTMLElement && target.closest(".s9-widget")) return;
     const position = this.renderer.positionAtPoint(event.clientX, event.clientY);
@@ -521,6 +549,7 @@ export class ScribeFrame {
     this.destroyed = true;
     this.unbindEvents();
     this.handleSelectionDragEnd();
+    this.clearInteractionPress();
     const snapshot = this.snapshot();
     this.slots.forEach((slot) => slot.destroy(snapshot));
     this.slots = [];
@@ -603,6 +632,53 @@ export class ScribeFrame {
     }
 
     this.runKeymap(defaultEditorKeymap, event);
+  }
+
+  private captureInteractionPress(event: MouseEvent): void {
+    this.clearInteractionPress();
+    if (event.detail !== 1 || event.shiftKey) return;
+
+    this.interactionPress = {
+      x: event.clientX,
+      y: event.clientY,
+    };
+    document.addEventListener("mouseup", this.handleInteractionMouseUp);
+  }
+
+  private clearInteractionPress(): void {
+    this.interactionPress = null;
+    document.removeEventListener("mouseup", this.handleInteractionMouseUp);
+  }
+
+  private handleInteraction(
+    type: EditorInteractionType,
+    event: MouseEvent,
+  ): boolean {
+    const hit = this.renderer.interactionAtPoint(event.clientX, event.clientY);
+    if (hit.targets.length === 0) return false;
+
+    const interaction: EditorInteraction = {
+      ...hit,
+      type,
+      event,
+      modifiers: this.interactionModifiers(event),
+    };
+    const handled = this.slots.some((slot) =>
+      slot.handleInteraction(this.snapshot(), interaction, (transaction) =>
+        this.dispatch(transaction),
+      ),
+    );
+    if (handled) event.preventDefault();
+    return handled;
+  }
+
+  private interactionModifiers(event: MouseEvent): EditorInteractionModifiers {
+    return {
+      alt: event.altKey,
+      ctrl: event.ctrlKey,
+      meta: event.metaKey,
+      shift: event.shiftKey,
+    };
   }
 
   private runKeymap(
