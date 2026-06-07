@@ -30,17 +30,5 @@ jobs:
       - name: Install browser dependencies
         run: npx playwright install --with-deps chromium webkit
 
-      - name: Typecheck demo
-        run: npm run demo:typecheck
-
-      - name: Test
-        run: npm run test
-
-      - name: Build
-        run: npm run build
-
-      - name: Build demo
-        run: npm run demo:build
-
-      - name: Test browser demo
-        run: npm run browser:test
+      - name: Verify
+        run: npm run verify
