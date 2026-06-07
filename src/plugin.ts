@@ -5,6 +5,7 @@ import {
   WidgetDecoration,
 } from "./decorations.js";
 import type { EditorCommand, EditorKeyBinding } from "./commands.js";
+import type { EditorInteraction } from "./interaction.js";
 import { EditorDocument, Selection } from "./model.js";
 import { Step, Transaction } from "./transaction.js";
 
@@ -41,8 +42,13 @@ export interface PluginInputContext<S> extends PluginCommandContext<S> {
   readonly event: KeyboardEvent;
 }
 
+export interface PluginInteractionContext<S> extends PluginCommandContext<S> {
+  readonly interaction: EditorInteraction;
+}
+
 export interface EditorPluginProps<S> {
   handleKeyDown?(context: PluginInputContext<S>): boolean;
+  handleInteraction?(context: PluginInteractionContext<S>): boolean;
   readonly keymap?: readonly EditorKeyBinding[];
 }
 
@@ -80,6 +86,11 @@ export interface PluginSlot {
   handleKeyDown(
     snapshot: EditorSnapshot,
     event: KeyboardEvent,
+    dispatch: (transaction: Transaction) => void,
+  ): boolean;
+  handleInteraction(
+    snapshot: EditorSnapshot,
+    interaction: EditorInteraction,
     dispatch: (transaction: Transaction) => void,
   ): boolean;
 }
@@ -137,6 +148,14 @@ export const createPluginSlot = <S>(
         ...snapshot,
         state: pluginState,
         event,
+        dispatch,
+      }) ?? false;
+    },
+    handleInteraction(snapshot, interaction, dispatch) {
+      return currentPlugin.props?.handleInteraction?.({
+        ...snapshot,
+        state: pluginState,
+        interaction,
         dispatch,
       }) ?? false;
     },

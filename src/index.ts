@@ -2,6 +2,7 @@ export * from "./commands.js";
 export * from "./decorations.js";
 export * from "./editor.js";
 export * from "./history.js";
+export * from "./interaction.js";
 export * from "./metadata.js";
 export * from "./model.js";
 export * from "./plugin.js";

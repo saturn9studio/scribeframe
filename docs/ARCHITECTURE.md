@@ -90,6 +90,22 @@ breaks, undo, and redo. A command returns `false` to decline handling, allowing
 later keymaps to run. This keeps default behavior configurable without exposing
 DOM events or editor internals as the primary extension API.
 
+## Rendered interactions
+
+The editor owns pointer selection behavior and may suppress native browser click
+defaults so the DOM selection cannot diverge from the editor selection model.
+Because selection-only transactions can re-render the visible surface between
+`mousedown` and `mouseup`, plugins should not rely on native `click` events for
+rendered text interactions.
+
+Scribeframe instead synthesizes a format-agnostic activation interaction from the
+editor-owned mouse path. The interaction reports the current document position
+plus rendered decoration and widget targets under the pointer. Targets expose
+their public decoration/widget descriptions and ranges only; the core does not
+interpret classes, attributes, Markdown syntax, or application policy. Adapter
+layers such as Scribe can map those generic targets to semantic actions like
+opening Markdown links.
+
 ## Widget lifecycle
 
 Widgets are immutable render descriptions keyed by plugin-scoped `WidgetKey`s.
