@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { cwd } from "node:process";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ScribeFrame } from "../src";
 import {
   codeBlockWidgetPlugin,
@@ -15,6 +15,10 @@ const inputFor = (container: HTMLElement): HTMLTextAreaElement => {
 };
 
 describe("renderer accessibility", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("exposes stable textbox semantics on the editor root", () => {
     const container = document.createElement("div");
     document.body.append(container);
@@ -106,6 +110,47 @@ describe("renderer accessibility", () => {
     container.focus();
 
     expect(document.activeElement).toBe(inputFor(container));
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("focuses the input proxy directly from the editor API", () => {
+    const container = document.createElement("div");
+    const other = document.createElement("button");
+    document.body.append(container, other);
+    const editor = new ScribeFrame(container, {
+      ariaLabel: "Keyboard target",
+      content: "",
+    });
+
+    other.focus();
+    editor.focus();
+
+    expect(document.activeElement).toBe(inputFor(container));
+
+    editor.destroy();
+    container.remove();
+    other.remove();
+  });
+
+  it("resets stale input proxy focus when focusing the editor API", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ScribeFrame(container, {
+      ariaLabel: "Keyboard target",
+      content: "",
+    });
+    const input = inputFor(container);
+    const blur = vi.spyOn(input, "blur");
+    const focus = vi.spyOn(input, "focus");
+
+    input.focus();
+    editor.focus();
+
+    expect(blur).toHaveBeenCalledTimes(1);
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+    expect(document.activeElement).toBe(input);
 
     editor.destroy();
     container.remove();
