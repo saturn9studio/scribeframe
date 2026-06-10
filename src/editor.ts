@@ -478,7 +478,15 @@ export class ScribeFrame {
           .build(),
       );
     }
-    this.textarea.focus();
+    this.focusInputProxy();
+  }
+
+  private focusInputProxy(): void {
+    if (this.textarea.ownerDocument.activeElement === this.textarea) {
+      this.textarea.blur();
+    }
+
+    this.textarea.focus({ preventScroll: true });
     this.renderer.syncInputProxy(this.textarea);
   }
 
