@@ -482,30 +482,12 @@ export class ScribeFrame {
   }
 
   private focusInputProxy(): void {
-    this.renderer.syncInputProxy(this.textarea);
-
     if (this.textarea.ownerDocument.activeElement === this.textarea) {
       this.textarea.blur();
     }
 
     this.textarea.focus({ preventScroll: true });
     this.renderer.syncInputProxy(this.textarea);
-
-    if (this.textarea.ownerDocument.activeElement === this.textarea) {
-      return;
-    }
-
-    const view = this.textarea.ownerDocument.defaultView;
-    const retry = (): void => {
-      if (this.destroyed) return;
-      this.textarea.focus({ preventScroll: true });
-      this.renderer.syncInputProxy(this.textarea);
-    };
-    if (view?.requestAnimationFrame) {
-      view.requestAnimationFrame(retry);
-    } else {
-      (view?.setTimeout ?? setTimeout)(retry, 0);
-    }
   }
 
   revealPosition(position: Position, options: EditorRevealOptions = {}): void {
