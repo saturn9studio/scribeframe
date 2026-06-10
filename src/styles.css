@@ -95,6 +95,10 @@
   display: none;
 }
 
+.s9-editor-root:not(.s9-editor-root--input-focused) .s9-caret {
+  display: none;
+}
+
 .s9-input-proxy {
   background: transparent;
   border: 0;

@@ -114,6 +114,8 @@ const editorRootAttributes = [
   "tabindex",
 ] as const;
 
+const editorInputFocusedClass = "s9-editor-root--input-focused";
+
 type EditorRootAttribute = (typeof editorRootAttributes)[number];
 
 const captureRootAttributes = (
@@ -262,6 +264,15 @@ export class ScribeFrame {
   private readonly handleContainerFocus = (event: FocusEvent): void => {
     if (this.destroyed || event.target !== this.container) return;
     this.focus();
+  };
+
+  private readonly handleTextareaFocus = (): void => {
+    if (this.destroyed) return;
+    this.container.classList.add(editorInputFocusedClass);
+  };
+
+  private readonly handleTextareaBlur = (): void => {
+    this.container.classList.remove(editorInputFocusedClass);
   };
 
   private readonly handleTextareaKeyDown = (event: KeyboardEvent): void => {
@@ -563,7 +574,7 @@ export class ScribeFrame {
     this.slots = [];
     this.textarea.remove();
     this.renderer.destroy();
-    this.container.classList.remove("s9-editor-root");
+    this.container.classList.remove("s9-editor-root", editorInputFocusedClass);
     restoreRootAttributes(this.container, this.rootAttributeSnapshot);
   }
 
@@ -587,6 +598,8 @@ export class ScribeFrame {
   private bindEvents(): void {
     this.container.addEventListener("mousedown", this.handleContainerMouseDown);
     this.container.addEventListener("focus", this.handleContainerFocus);
+    this.textarea.addEventListener("focus", this.handleTextareaFocus);
+    this.textarea.addEventListener("blur", this.handleTextareaBlur);
     this.textarea.addEventListener("keydown", this.handleTextareaKeyDown);
     this.textarea.addEventListener("beforeinput", this.handleTextareaBeforeInput);
     this.textarea.addEventListener("input", this.handleTextareaInput);
@@ -600,6 +613,8 @@ export class ScribeFrame {
   private unbindEvents(): void {
     this.container.removeEventListener("mousedown", this.handleContainerMouseDown);
     this.container.removeEventListener("focus", this.handleContainerFocus);
+    this.textarea.removeEventListener("focus", this.handleTextareaFocus);
+    this.textarea.removeEventListener("blur", this.handleTextareaBlur);
     this.textarea.removeEventListener("keydown", this.handleTextareaKeyDown);
     this.textarea.removeEventListener(
       "beforeinput",
