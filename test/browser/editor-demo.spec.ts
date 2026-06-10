@@ -73,6 +73,24 @@ test("read-only mode suppresses real keyboard input", async ({ page }) => {
   await expect(documentText).toHaveText(initialContent ?? "");
 });
 
+test("caret is hidden when editor focus leaves", async ({ page }) => {
+  const caret = page.locator(".s9-caret");
+
+  await page.locator(focusButton).click();
+  await expect(caret).toBeVisible();
+
+  await page.locator(".s9-code-widget-textarea").focus();
+  await expect(caret).toBeHidden();
+
+  await page.locator(focusButton).click();
+  await expect(caret).toBeVisible();
+
+  await page.locator(focusButton).evaluate((button: HTMLButtonElement) => {
+    button.focus();
+  });
+  await expect(caret).toBeHidden();
+});
+
 test("code block widget edits update document text", async ({ page }) => {
   const code = page.locator(".s9-code-widget-textarea");
 

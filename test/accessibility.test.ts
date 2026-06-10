@@ -134,6 +134,30 @@ describe("renderer accessibility", () => {
     other.remove();
   });
 
+  it("marks the root only while the input proxy owns focus", () => {
+    const container = document.createElement("div");
+    const other = document.createElement("button");
+    document.body.append(container, other);
+    const editor = new ScribeFrame(container, {
+      ariaLabel: "Keyboard target",
+      content: "",
+    });
+
+    editor.focus();
+    expect(container.classList.contains("s9-editor-root--input-focused")).toBe(
+      true,
+    );
+
+    other.focus();
+    expect(container.classList.contains("s9-editor-root--input-focused")).toBe(
+      false,
+    );
+
+    editor.destroy();
+    container.remove();
+    other.remove();
+  });
+
   it("resets stale input proxy focus when focusing the editor API", () => {
     const container = document.createElement("div");
     document.body.append(container);
