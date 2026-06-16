@@ -117,12 +117,9 @@ existing widget roots.
 
 Plugins are initialized from an editor snapshot and receive every transaction
 through `apply`. Plugins can expose commands/keymaps, pure render output,
-normalization steps, and an optional `destroy` hook. Normalizers receive the
-current extension instances and widget descriptions so format adapters can enforce
-document invariants from public render metadata without depending on widget
-kinds. `destroy` receives the latest plugin state and editor snapshot so plugins
-can cancel async work and release external resources without reaching into editor
-internals.
+normalization steps, and an optional `destroy` hook. `destroy` receives the latest
+plugin state and editor snapshot so plugins can cancel async work and release
+external resources without reaching into editor internals.
 
 `ScribeFrame.setPlugins()` reconfigures the plugin list at runtime. Plugin
 state is keyed by `PluginId` object identity, so factories can return fresh
