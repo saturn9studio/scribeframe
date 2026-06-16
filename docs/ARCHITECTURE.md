@@ -56,8 +56,8 @@ not install `@saturn9/markoffset` unless they choose a Markdown integration.
 ## History
 
 Undo and redo are owned by the editor runtime, not by plugins or the renderer.
-Text-changing dispatches record a bounded history entry after plugin
-normalization so undo restores the same document, selection, and provider syntax
+Text-changing dispatches record a bounded history entry after the transaction is
+applied so undo restores the same document, selection, and provider syntax
 snapshot that the user saw. Selection-only transactions are not recorded.
 Undo/redo restores notify plugins through the same apply path, emit change
 notifications, and do not record themselves as new history entries. The redo
@@ -116,10 +116,12 @@ existing widget roots.
 ## Plugin lifecycle
 
 Plugins are initialized from an editor snapshot and receive every transaction
-through `apply`. Plugins can expose commands/keymaps, pure render output,
-normalization steps, and an optional `destroy` hook. `destroy` receives the latest
-plugin state and editor snapshot so plugins can cancel async work and release
-external resources without reaching into editor internals.
+through `apply`. Plugins can expose commands/keymaps, pure render output, and an
+optional `destroy` hook. Document changes remain explicit transactions initiated
+by editor commands, app code, or plugin command/input/interaction handlers; plugin
+render-output hooks do not implicitly rewrite editor state. `destroy` receives
+the latest plugin state and editor snapshot so plugins can cancel async work and
+release external resources without reaching into editor internals.
 
 `ScribeFrame.setPlugins()` reconfigures the plugin list at runtime. Plugin
 state is keyed by `PluginId` object identity, so factories can return fresh
