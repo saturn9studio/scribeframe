@@ -232,7 +232,7 @@ const counterPlugin = (): EditorPlugin<CounterState> => ({
 | `instances?(context)` | Returns semantic extension instances discovered from document/syntax state. |
 | `decorations?(context)` | Returns inline, block, or annotation decorations. |
 | `widgets?(context)` | Returns widget descriptions. |
-| `normalize?(context)` | Returns transaction steps to enforce document invariants. |
+| `normalize?(context)` | Returns transaction steps to enforce document invariants; context includes current extension `instances` and `widgets`. |
 | `commands?(context)` | Returns plugin-provided commands. |
 | `destroy?(context)` | Releases external resources when removed or editor is destroyed. |
 | `props.keymap` | Plugin-scoped key bindings. |
