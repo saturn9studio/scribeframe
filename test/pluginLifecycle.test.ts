@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ScribeFrame,
   PluginId,
+  type WidgetDecoration,
   createTransaction,
   type EditorPlugin,
 } from "../src";
@@ -215,6 +216,63 @@ describe("plugin lifecycle", () => {
 
     expect(destroyCounts.retained).toBe(0);
     expect(editor.getPluginState(retainedId)).toBeNull();
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("provides widget output to plugin normalizers", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const seenWidgets: Array<{
+      readonly placement: string;
+      readonly selection: string;
+    }> = [];
+    const widget: WidgetDecoration = {
+      key: "normalizer-widget:terminal",
+      placement: "block",
+      range: {
+        from: { paragraph: 0, offset: 0 },
+        to: { paragraph: 0, offset: 6 },
+      },
+      props: {},
+      render: {
+        mount() {
+          return { update() {}, destroy() {} };
+        },
+      },
+      selection: "block",
+    };
+    const widgetPlugin: EditorPlugin<null> = {
+      id: new PluginId<null>("normalizer-widget"),
+      init: () => null,
+      apply: () => null,
+      widgets: () => [widget],
+    };
+    const normalizerPlugin: EditorPlugin<null> = {
+      id: new PluginId<null>("normalizer-reader"),
+      init: () => null,
+      apply: () => null,
+      normalize({ widgets }) {
+        seenWidgets.push(
+          ...widgets.map((item) => ({
+            placement: item.placement,
+            selection: item.selection,
+          })),
+        );
+        return [];
+      },
+    };
+
+    const editor = new ScribeFrame(container, {
+      content: "widget",
+      plugins: [widgetPlugin, normalizerPlugin],
+    });
+
+    expect(seenWidgets).toContainEqual({
+      placement: "block",
+      selection: "block",
+    });
 
     editor.destroy();
     container.remove();

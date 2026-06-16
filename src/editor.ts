@@ -1193,7 +1193,7 @@ export class ScribeFrame {
     const snapshot = this.snapshot();
     const output = this.collectOutput(snapshot);
     const steps = this.slots.flatMap((slot) =>
-      slot.normalize(snapshot, output.instances),
+      slot.normalize(snapshot, output.instances, output.widgets),
     );
 
     if (steps.length === 0) return;
