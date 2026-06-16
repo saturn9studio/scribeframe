@@ -32,7 +32,6 @@ export interface PluginDestroyContext<S> extends PluginOutputContext<S> {}
 
 export interface NormalizeContext<S> extends PluginOutputContext<S> {
   readonly instances: readonly ExtensionInstance[];
-  readonly widgets: readonly WidgetDecoration[];
 }
 
 export interface PluginCommandContext<S> extends PluginOutputContext<S> {
@@ -80,7 +79,6 @@ export interface PluginSlot {
   normalize(
     snapshot: EditorSnapshot,
     instances: readonly ExtensionInstance[],
-    widgets: readonly WidgetDecoration[],
   ): readonly Step[];
   commands(snapshot: EditorSnapshot): readonly EditorCommand[];
   keymap(): readonly EditorKeyBinding[];
@@ -130,14 +128,10 @@ export const createPluginSlot = <S>(
         widgets: currentPlugin.widgets?.(context) ?? [],
       };
     },
-    normalize(snapshot, instances, widgets) {
+    normalize(snapshot, instances) {
       return (
-        currentPlugin.normalize?.({
-          ...snapshot,
-          state: pluginState,
-          instances,
-          widgets,
-        }) ?? []
+        currentPlugin.normalize?.({ ...snapshot, state: pluginState, instances }) ??
+        []
       );
     },
     commands(snapshot) {
