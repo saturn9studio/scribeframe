@@ -371,7 +371,6 @@ export class ScribeFrame {
     this.container.append(this.textarea);
     this.syncAccessibilityState();
     this.bindEvents();
-    this.normalize();
     this.render();
   }
 
@@ -441,7 +440,6 @@ export class ScribeFrame {
       const transaction = createTransaction(this.doc, this.selection).build();
       slot.apply(transaction, this.snapshot());
     });
-    this.normalize();
     this.render();
     this.emitChange();
   }
@@ -476,7 +474,6 @@ export class ScribeFrame {
       .filter((slot) => !retained.has(slot))
       .forEach((slot) => slot.destroy(snapshot));
     this.slots = nextSlots;
-    this.normalize();
     this.render();
   }
 
@@ -547,7 +544,6 @@ export class ScribeFrame {
     }
     const snapshot = this.snapshot();
     this.slots.forEach((slot) => slot.apply(transaction, snapshot));
-    this.normalize();
     if (changesText) {
       this.history.record({
         before: historyBefore,
@@ -1189,41 +1185,6 @@ export class ScribeFrame {
     );
   }
 
-  private normalize(): void {
-    const snapshot = this.snapshot();
-    const output = this.collectOutput(snapshot);
-    const steps = this.slots.flatMap((slot) =>
-      slot.normalize(snapshot, output.instances),
-    );
-
-    if (steps.length === 0) return;
-
-    const builder = createTransaction(this.doc, this.selection);
-    steps.forEach((step) => {
-      if (step.kind === "replaceRange") {
-        builder.replaceRange(step.from, step.to, step.text);
-      } else {
-        builder.setSelection(step.selection);
-      }
-    });
-    const transaction = builder.build();
-    const changesText = transaction.displayChanges.length > 0;
-    if (changesText) {
-      this.content = applyDisplayChanges(this.content, transaction.displayChanges);
-    }
-    this.doc = transaction.docAfter;
-    this.selection = transaction.selectionAfter;
-    if (changesText) {
-      this.syntax = this.syntaxProvider.update(
-        this.syntax,
-        this.doc,
-        transaction.displayChanges,
-      );
-    }
-    const normalizedSnapshot = this.snapshot();
-    this.slots.forEach((slot) => slot.apply(transaction, normalizedSnapshot));
-  }
-
   private snapshot(): EditorStateSnapshot {
     return {
       doc: this.doc,
@@ -1253,7 +1214,6 @@ export class ScribeFrame {
     this.syntax = snapshot.syntax;
     const state = this.snapshot();
     this.slots.forEach((slot) => slot.apply(transaction, state));
-    this.normalize();
     this.render();
     this.emitChange();
   }

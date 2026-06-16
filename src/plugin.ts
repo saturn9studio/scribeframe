@@ -7,7 +7,7 @@ import {
 import type { EditorCommand, EditorKeyBinding } from "./commands.js";
 import type { EditorInteraction } from "./interaction.js";
 import { EditorDocument, Selection } from "./model.js";
-import { Step, Transaction } from "./transaction.js";
+import { Transaction } from "./transaction.js";
 
 export class PluginId<S> {
   readonly state?: S;
@@ -29,10 +29,6 @@ export interface PluginOutputContext<S> extends EditorSnapshot {
 }
 
 export interface PluginDestroyContext<S> extends PluginOutputContext<S> {}
-
-export interface NormalizeContext<S> extends PluginOutputContext<S> {
-  readonly instances: readonly ExtensionInstance[];
-}
 
 export interface PluginCommandContext<S> extends PluginOutputContext<S> {
   readonly dispatch: (transaction: Transaction) => void;
@@ -59,7 +55,6 @@ export interface EditorPlugin<S> {
   instances?(context: PluginOutputContext<S>): readonly ExtensionInstance[];
   decorations?(context: PluginOutputContext<S>): readonly EditorDecoration[];
   widgets?(context: PluginOutputContext<S>): readonly WidgetDecoration[];
-  normalize?(context: NormalizeContext<S>): readonly Step[];
   commands?(context: PluginOutputContext<S>): readonly EditorCommand[];
   destroy?(context: PluginDestroyContext<S>): void;
   readonly props?: EditorPluginProps<S>;
@@ -76,10 +71,6 @@ export interface PluginSlot {
     readonly decorations: readonly EditorDecoration[];
     readonly widgets: readonly WidgetDecoration[];
   };
-  normalize(
-    snapshot: EditorSnapshot,
-    instances: readonly ExtensionInstance[],
-  ): readonly Step[];
   commands(snapshot: EditorSnapshot): readonly EditorCommand[];
   keymap(): readonly EditorKeyBinding[];
   destroy(snapshot: EditorSnapshot): void;
@@ -127,12 +118,6 @@ export const createPluginSlot = <S>(
         decorations: currentPlugin.decorations?.(context) ?? [],
         widgets: currentPlugin.widgets?.(context) ?? [],
       };
-    },
-    normalize(snapshot, instances) {
-      return (
-        currentPlugin.normalize?.({ ...snapshot, state: pluginState, instances }) ??
-        []
-      );
     },
     commands(snapshot) {
       return currentPlugin.commands?.({ ...snapshot, state: pluginState }) ?? [];
