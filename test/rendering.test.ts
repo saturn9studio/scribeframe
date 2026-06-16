@@ -246,6 +246,46 @@ describe("rendering", () => {
     }
   });
 
+  it("positions the caret at the text indent for empty paragraphs", () => {
+    const container = document.createElement("div");
+    const style = document.createElement("style");
+    style.textContent = ".s9-paragraph-empty { text-indent: 24px; }";
+    document.head.append(style);
+    document.body.append(container);
+    const editor = new ScribeFrame(container, {
+      content: "First paragraph\n",
+    });
+    const elementRect = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(function () {
+        return this.dataset.paragraph === "1"
+          ? rect(10, 20, 300, 18)
+          : rect(0, 0, 300, 40);
+      });
+
+    try {
+      const emptyParagraph = container.querySelector<HTMLElement>(
+        '.s9-paragraph[data-paragraph="1"]',
+      );
+      if (!emptyParagraph) throw new Error("Empty paragraph not found");
+
+      editor.selectRange({
+        from: { paragraph: 1, offset: 0 },
+        to: { paragraph: 1, offset: 0 },
+      });
+
+      const caret = container.querySelector<HTMLElement>(".s9-caret");
+      expect(caret?.style.left).toBe("34px");
+      expect(caret?.style.top).toBe("20px");
+      expect(caret?.style.height).toBe("18px");
+    } finally {
+      elementRect.mockRestore();
+      editor.destroy();
+      container.remove();
+      style.remove();
+    }
+  });
+
   it("extends selection with Shift+Arrow and repaints it", () => {
     const container = document.createElement("div");
     document.body.append(container);
