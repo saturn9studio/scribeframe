@@ -79,6 +79,31 @@ interface VirtualWindow {
   readonly virtualized: boolean;
 }
 
+const rectWithHorizontalPosition = (
+  rect: DOMRect,
+  left: number,
+  right: number = left,
+): DOMRect => ({
+  left,
+  right,
+  top: rect.top,
+  bottom: rect.bottom,
+  width: Math.max(0, right - left),
+  height: rect.height,
+  x: left,
+  y: rect.top,
+  toJSON: () => ({}),
+}) as DOMRect;
+
+const textIndentPx = (element: HTMLElement, rect: DOMRect): number => {
+  const value = getComputedStyle(element).textIndent.trim();
+  if (value.endsWith("%")) {
+    return rect.width * (Number.parseFloat(value) / 100);
+  }
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 export interface VerticalPositionResult {
   readonly position: Position;
   readonly preferredX: number;
@@ -1385,12 +1410,19 @@ export class Renderer {
     const paragraphElement = this.surface.querySelector<HTMLElement>(
       `[data-paragraph="${clamped.paragraph}"]`,
     );
-    return (
-      paragraphElement?.getBoundingClientRect() ??
-      (this.currentWindow.virtualized
-        ? this.virtualParagraphRect(clamped.paragraph)
-        : null)
-    );
+    if (paragraphElement) {
+      const rect = paragraphElement.getBoundingClientRect();
+      const textIndent = textIndentPx(paragraphElement, rect);
+      const direction = getComputedStyle(paragraphElement).direction;
+      const left = direction === "rtl"
+        ? rect.right - textIndent
+        : rect.left + textIndent;
+      return rectWithHorizontalPosition(rect, left);
+    }
+
+    return this.currentWindow.virtualized
+      ? this.virtualParagraphRect(clamped.paragraph)
+      : null;
   }
 
   private virtualParagraphRect(paragraphIndex: number): DOMRect {
