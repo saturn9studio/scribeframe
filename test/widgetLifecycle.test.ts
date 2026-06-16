@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   EditorPlugin,
+  editorCommandNames,
   ScribeFrame,
   PluginId,
   WidgetDecoration,
@@ -121,6 +122,28 @@ describe("widget lifecycle", () => {
       container.querySelector<HTMLTextAreaElement>(".s9-code-widget-textarea")
         ?.readOnly,
     ).toBe(true);
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("deletes a preceding block widget from a following empty paragraph", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const counts = { mounts: 0, updates: 0, destroys: 0 };
+    const editor = new ScribeFrame(container, {
+      content: "widget\n",
+      plugins: [lifecyclePlugin(counts)],
+    });
+    editor.selectRange({
+      from: { paragraph: 1, offset: 0 },
+      to: { paragraph: 1, offset: 0 },
+    });
+
+    expect(editor.executeCommand(editorCommandNames.deleteBackward)).toBe(true);
+
+    expect(editor.getContent()).toBe("");
+    expect(counts.destroys).toBe(1);
 
     editor.destroy();
     container.remove();

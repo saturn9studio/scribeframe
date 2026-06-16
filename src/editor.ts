@@ -25,6 +25,7 @@ import {
   documentFromText,
   documentToText,
   firstPosition,
+  isSamePosition,
   lastPosition,
   nextPosition,
   nextWordPosition,
@@ -1112,6 +1113,26 @@ export class ScribeFrame {
           .build(),
       );
       return;
+    }
+
+    const current = this.selection.head;
+    if (current.offset === 0 && current.paragraph > 0) {
+      const previous = previousPosition(this.doc, current);
+      const terminalBlockWidget = this.collectOutput(this.snapshot()).widgets.find(
+        (widget) =>
+          widget.placement === "block" &&
+          widget.selection === "block" &&
+          isSamePosition(widget.range.to, previous),
+      );
+      if (terminalBlockWidget) {
+        this.dispatch(
+          createTransaction(this.doc, this.selection)
+            .replaceRange(terminalBlockWidget.range.from, current, "")
+            .setMeta(historyEventMetaKey, { kind: "boundary" })
+            .build(),
+        );
+        return;
+      }
     }
 
     const previous =
