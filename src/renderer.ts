@@ -68,6 +68,10 @@ interface RenderIndex {
     readonly InlineDecoration[]
   >;
   readonly blockWidgetsByParagraph: ReadonlyMap<number, readonly WidgetDecoration[]>;
+  readonly blockWidgetCoveredParagraphs: ReadonlyMap<
+    WidgetKey,
+    readonly number[]
+  >;
   readonly blockWidgetCoverage: ReadonlySet<number>;
 }
 
@@ -222,9 +226,9 @@ const setBlockAttributes = (
   });
 };
 
-const appendMapValue = <T>(
-  map: Map<number, T[]>,
-  key: number,
+const appendMapValue = <K, T>(
+  map: Map<K, T[]>,
+  key: K,
   value: T,
 ): void => {
   const values = map.get(key);
@@ -326,6 +330,7 @@ const buildRenderIndex = (input: RendererInput): RenderIndex => {
   const rangeDecorationsByParagraph = new Map<number, RangeDecoration[]>();
   const inlineDecorationsByParagraph = new Map<number, InlineDecoration[]>();
   const blockWidgetsByParagraph = new Map<number, WidgetDecoration[]>();
+  const blockWidgetCoveredParagraphs = new Map<WidgetKey, number[]>();
   const blockWidgetCoverage = new Set<number>();
 
   input.decorations.forEach((decoration) => {
@@ -377,6 +382,7 @@ const buildRenderIndex = (input: RendererInput): RenderIndex => {
       );
       if (paragraphRange.to > from && paragraphRange.from < to) {
         blockWidgetCoverage.add(paragraphIndex);
+        appendMapValue(blockWidgetCoveredParagraphs, widget.key, paragraphIndex);
       }
     }
   });
@@ -387,6 +393,7 @@ const buildRenderIndex = (input: RendererInput): RenderIndex => {
     rangeDecorationsByParagraph,
     inlineDecorationsByParagraph,
     blockWidgetsByParagraph,
+    blockWidgetCoveredParagraphs,
     blockWidgetCoverage,
   };
 };
@@ -403,6 +410,7 @@ export class Renderer {
   private readonly scrollContainer: HTMLElement;
   private readonly virtualization: Required<RendererVirtualizationOptions>;
   private readonly paragraphHeights = new Map<number, number>();
+  private readonly blockWidgetHeights = new Map<WidgetKey, number>();
   private readonly segments: TextSegment[] = [];
   private readonly widgets = new Map<WidgetKey, WidgetRecord>();
   private currentInput: RendererInput | null = null;
@@ -462,7 +470,7 @@ export class Renderer {
     this.currentWidgets = new Map(input.widgets.map((widget) => [widget.key, widget]));
     this.currentIndex = index;
     this.segments.length = 0;
-    const window = this.virtualWindow(input.doc);
+    const window = this.virtualWindow(input.doc, index);
     const mountedWidgetKeys = new Set<WidgetKey>();
 
     const nextSurface = document.createElement("div");
@@ -564,7 +572,7 @@ export class Renderer {
     this.surface.replaceWith(nextSurface);
     this.surface = nextSurface;
     this.currentWindow = window;
-    this.measureRenderedParagraphHeights();
+    this.measureRenderedHeights(index);
     this.restoreWidgetFocus(focusSnapshot);
     this.updateSelectionOverlay(input);
     this.updateCaret();
@@ -578,6 +586,7 @@ export class Renderer {
     this.currentIndex = null;
     this.segments.length = 0;
     this.paragraphHeights.clear();
+    this.blockWidgetHeights.clear();
     this.currentInput = null;
     this.root.replaceChildren();
     this.root.classList.remove("s9-editor");
@@ -653,8 +662,9 @@ export class Renderer {
     if (!input) return;
 
     const clamped = clampPosition(input.doc, position);
-    const top = this.paragraphTop(clamped.paragraph);
-    const bottom = top + this.paragraphHeight(clamped.paragraph);
+    const index = this.currentIndex ?? buildRenderIndex(input);
+    const top = this.paragraphTop(index, clamped.paragraph);
+    const bottom = top + this.paragraphLayoutHeight(index, clamped.paragraph);
     this.revealVerticalRange(top, bottom, options);
   }
 
@@ -666,10 +676,11 @@ export class Renderer {
       anchor: clampPosition(input.doc, selection.anchor),
       head: clampPosition(input.doc, selection.head),
     });
-    const top = this.paragraphTop(range.from.paragraph);
+    const index = this.currentIndex ?? buildRenderIndex(input);
+    const top = this.paragraphTop(index, range.from.paragraph);
     const bottom =
-      this.paragraphTop(range.to.paragraph) +
-      this.paragraphHeight(range.to.paragraph);
+      this.paragraphTop(index, range.to.paragraph) +
+      this.paragraphLayoutHeight(index, range.to.paragraph);
     this.revealVerticalRange(top, bottom, options);
   }
 
@@ -728,7 +739,7 @@ export class Renderer {
     };
   }
 
-  private virtualWindow(doc: EditorDocument): VirtualWindow {
+  private virtualWindow(doc: EditorDocument, index: RenderIndex): VirtualWindow {
     const paragraphCount = doc.paragraphs.length;
     const clientHeight = this.scrollContainer.clientHeight;
 
@@ -752,21 +763,21 @@ export class Renderer {
     let beforeHeight = 0;
     while (
       from < paragraphCount &&
-      beforeHeight + this.paragraphHeight(from) <= visibleTop
+      beforeHeight + this.paragraphLayoutHeight(index, from) <= visibleTop
     ) {
-      beforeHeight += this.paragraphHeight(from);
+      beforeHeight += this.paragraphLayoutHeight(index, from);
       from += 1;
     }
 
     let to = from;
     let coveredHeight = beforeHeight;
     while (to < paragraphCount && coveredHeight < visibleBottom) {
-      coveredHeight += this.paragraphHeight(to);
+      coveredHeight += this.paragraphLayoutHeight(index, to);
       to += 1;
     }
 
     if (to === from && from < paragraphCount) {
-      coveredHeight += this.paragraphHeight(to);
+      coveredHeight += this.paragraphLayoutHeight(index, to);
       to += 1;
     }
 
@@ -774,7 +785,7 @@ export class Renderer {
       from,
       to,
       beforeHeight,
-      afterHeight: Math.max(0, this.documentHeight(doc) - coveredHeight),
+      afterHeight: Math.max(0, this.documentHeight(doc, index) - coveredHeight),
       virtualized: true,
     };
   }
@@ -787,7 +798,7 @@ export class Renderer {
     return element;
   }
 
-  private measureRenderedParagraphHeights(): void {
+  private measureRenderedHeights(index: RenderIndex): void {
     this.surface
       .querySelectorAll<HTMLElement>(".s9-paragraph[data-paragraph]")
       .forEach((paragraphElement) => {
@@ -797,6 +808,25 @@ export class Renderer {
           this.paragraphHeights.set(paragraphIndex, rect.height);
         }
       });
+
+    this.surface
+      .querySelectorAll<HTMLElement>(".s9-widget-block[data-widget-key]")
+      .forEach((widgetElement) => {
+        const key = widgetElement.dataset.widgetKey as WidgetKey | undefined;
+        const rect = widgetElement.getBoundingClientRect();
+        if (key && rect.height > 0) {
+          this.blockWidgetHeights.set(key, rect.height);
+        }
+      });
+
+    const currentKeys = new Set(
+      [...index.blockWidgetsByParagraph.values()]
+        .flat()
+        .map((widget) => widget.key),
+    );
+    this.blockWidgetHeights.forEach((_height, key) => {
+      if (!currentKeys.has(key)) this.blockWidgetHeights.delete(key);
+    });
   }
 
   private paragraphHeight(paragraphIndex: number): number {
@@ -806,24 +836,63 @@ export class Renderer {
     );
   }
 
-  private paragraphTop(paragraphIndex: number): number {
+  private paragraphLayoutHeight(
+    index: RenderIndex,
+    paragraphIndex: number,
+  ): number {
+    const paragraphHeight = index.blockWidgetCoverage.has(paragraphIndex)
+      ? 0
+      : this.paragraphHeight(paragraphIndex);
+    const widgetHeight = (
+      index.blockWidgetsByParagraph.get(paragraphIndex) ?? []
+    ).reduce(
+      (total, widget) =>
+        total +
+        (this.blockWidgetHeights.get(widget.key) ??
+          this.blockWidgetFallbackHeight(index, widget)),
+      0,
+    );
+
+    return paragraphHeight + widgetHeight;
+  }
+
+  private blockWidgetFallbackHeight(
+    index: RenderIndex,
+    widget: WidgetDecoration,
+  ): number {
+    const coveredParagraphs = index.blockWidgetCoveredParagraphs.get(widget.key) ?? [];
+    if (coveredParagraphs.length === 0) {
+      return this.virtualization.estimateParagraphHeight;
+    }
+
+    return coveredParagraphs.reduce(
+      (total, paragraphIndex) => total + this.paragraphHeight(paragraphIndex),
+      0,
+    );
+  }
+
+  private paragraphTop(index: RenderIndex, paragraphIndex: number): number {
     let top = 0;
-    for (let index = 0; index < paragraphIndex; index += 1) {
-      top += this.paragraphHeight(index);
+    for (let itemIndex = 0; itemIndex < paragraphIndex; itemIndex += 1) {
+      top += this.paragraphLayoutHeight(index, itemIndex);
     }
     return top;
   }
 
-  private documentHeight(doc: EditorDocument): number {
+  private documentHeight(doc: EditorDocument, index: RenderIndex): number {
     return doc.paragraphs.reduce(
-      (total, _paragraph, index) => total + this.paragraphHeight(index),
+      (total, _paragraph, paragraphIndex) =>
+        total + this.paragraphLayoutHeight(index, paragraphIndex),
       0,
     );
   }
 
   private scrollHeight(): number {
     const virtualHeight = this.currentInput
-      ? this.documentHeight(this.currentInput.doc)
+      ? this.documentHeight(
+          this.currentInput.doc,
+          this.currentIndex ?? buildRenderIndex(this.currentInput),
+        )
       : 0;
     return Math.max(this.scrollContainer.scrollHeight, virtualHeight);
   }
@@ -1428,8 +1497,11 @@ export class Renderer {
   private virtualParagraphRect(paragraphIndex: number): DOMRect {
     const rootRect = this.root.getBoundingClientRect();
     const scrollOffset = this.rootScrollOffset();
-    const top = rootRect.top + this.paragraphTop(paragraphIndex) - scrollOffset.top;
-    const height = this.paragraphHeight(paragraphIndex);
+    const input = this.requireInput();
+    const index = this.currentIndex ?? buildRenderIndex(input);
+    const top =
+      rootRect.top + this.paragraphTop(index, paragraphIndex) - scrollOffset.top;
+    const height = this.paragraphLayoutHeight(index, paragraphIndex);
     return {
       left: rootRect.left,
       top,

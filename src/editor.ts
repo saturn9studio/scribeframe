@@ -7,7 +7,7 @@ import {
   type EditorCommandSnapshot,
   type EditorKeyBinding,
 } from "./commands.js";
-import { RenderOutput } from "./decorations.js";
+import { RenderOutput, WidgetDecoration } from "./decorations.js";
 import {
   EditorHistory,
   historyEventMetaKey,
@@ -32,6 +32,7 @@ import {
   previousPosition,
   previousWordPosition,
   selectionIsCollapsed,
+  isSamePosition,
   textInRange,
   wordRangeAtPosition,
 } from "./model.js";
@@ -1110,11 +1111,22 @@ export class ScribeFrame {
       return;
     }
 
+    const widgetRange = this.widgetDeletionRange("backward");
+    if (widgetRange) {
+      this.dispatch(
+        createTransaction(this.doc, this.selection)
+          .replaceRange(widgetRange.from, widgetRange.to, "")
+          .setMeta(historyEventMetaKey, { kind: "boundary" })
+          .build(),
+      );
+      return;
+    }
+
     const previous =
       granularity === "word"
         ? previousWordPosition(this.doc, this.selection.head)
         : previousPosition(this.doc, this.selection.head);
-    if (previous.paragraph === this.selection.head.paragraph && previous.offset === this.selection.head.offset) {
+    if (isSamePosition(previous, this.selection.head)) {
       return;
     }
 
@@ -1140,11 +1152,22 @@ export class ScribeFrame {
       return;
     }
 
+    const widgetRange = this.widgetDeletionRange("forward");
+    if (widgetRange) {
+      this.dispatch(
+        createTransaction(this.doc, this.selection)
+          .replaceRange(widgetRange.from, widgetRange.to, "")
+          .setMeta(historyEventMetaKey, { kind: "boundary" })
+          .build(),
+      );
+      return;
+    }
+
     const next =
       granularity === "word"
         ? nextWordPosition(this.doc, this.selection.head)
         : nextPosition(this.doc, this.selection.head);
-    if (next.paragraph === this.selection.head.paragraph && next.offset === this.selection.head.offset) {
+    if (isSamePosition(next, this.selection.head)) {
       return;
     }
 
@@ -1157,6 +1180,34 @@ export class ScribeFrame {
         )
         .build(),
     );
+  }
+
+  private widgetDeletionRange(direction: "backward" | "forward"): Range | null {
+    const head = clampPosition(this.doc, this.selection.head);
+    const adjacent =
+      direction === "backward"
+        ? previousPosition(this.doc, head)
+        : nextPosition(this.doc, head);
+    const output = this.collectOutput();
+    const widgets = output.widgets
+      .filter((widget) => widget.selection !== "inline")
+      .map((widget) => this.normalizedWidgetRange(widget))
+      .filter((range) => !isSamePosition(range.from, range.to));
+
+    return (
+      widgets.find((range) =>
+        direction === "backward"
+          ? isSamePosition(range.to, head) || isSamePosition(range.to, adjacent)
+          : isSamePosition(range.from, head) || isSamePosition(range.from, adjacent),
+      ) ?? null
+    );
+  }
+
+  private normalizedWidgetRange(widget: WidgetDecoration): Range {
+    return normalizeRange({
+      anchor: clampPosition(this.doc, widget.range.from),
+      head: clampPosition(this.doc, widget.range.to),
+    });
   }
 
   private render(): void {

@@ -132,6 +132,65 @@ const focusableViewportWidgetPlugin = (counts: Counts): EditorPlugin<null> => {
   };
 };
 
+const tallViewportWidgetPlugin = (
+  counts: Counts,
+  height: number,
+): EditorPlugin<null> => {
+  const renderer: WidgetRenderer<{ readonly label: string }> = {
+    mount(host, props) {
+      counts.mounts += 1;
+      host.textContent = props.label;
+      host.getBoundingClientRect = () =>
+        ({
+          left: 0,
+          top: 0,
+          right: 400,
+          bottom: height,
+          width: 400,
+          height,
+          x: 0,
+          y: 0,
+          toJSON: () => ({}),
+        }) as DOMRect;
+      return {
+        update(nextProps) {
+          counts.updates += 1;
+          host.textContent = nextProps.label;
+        },
+        destroy() {
+          counts.destroys += 1;
+          host.textContent = "";
+        },
+      };
+    },
+  };
+
+  return {
+    id: new PluginId<null>("tall-viewport-widget"),
+    init: () => null,
+    apply: () => null,
+    widgets: ({ doc }): readonly WidgetDecoration[] =>
+      doc.paragraphs.length > 10
+        ? [
+            {
+              key: "tall-viewport-widget:ten",
+              placement: "block",
+              range: {
+                from: { paragraph: 10, offset: 0 },
+                to: {
+                  paragraph: 10,
+                  offset: doc.paragraphs[10]?.text.length ?? 0,
+                },
+              },
+              props: { label: "tall widget" },
+              render: renderer,
+              selection: "block",
+            },
+          ]
+        : [],
+  };
+};
+
 describe("renderer virtualization and scrolling", () => {
   it("maps scroll fractions onto the virtual document height", () => {
     const container = document.createElement("div");
@@ -301,6 +360,36 @@ describe("renderer virtualization and scrolling", () => {
 
     editor.scrollToFraction(0);
     expect(counts.destroys).toBe(1);
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("uses measured block widget height in virtual scroll geometry", () => {
+    const container = document.createElement("div");
+    setViewport(container, 40);
+    document.body.append(container);
+    const counts = { mounts: 0, updates: 0, destroys: 0 };
+
+    const editor = new ScribeFrame(container, {
+      content: lines(20),
+      plugins: [tallViewportWidgetPlugin(counts, 100)],
+      virtualization: { estimateParagraphHeight: 20, overscan: 0 },
+    });
+
+    editor.revealPosition({ paragraph: 10, offset: 0 }, { block: "start" });
+
+    expect(counts.mounts).toBe(1);
+    expect(editor.getScrollState().scrollHeight).toBe(480);
+
+    container.scrollTop = 300;
+    container.dispatchEvent(new Event("scroll"));
+
+    expect(renderedParagraphs(container)).toEqual([11, 12]);
+    expect(
+      container.querySelector<HTMLElement>(".s9-virtual-spacer-before")?.style
+        .height,
+    ).toBe("300px");
 
     editor.destroy();
     container.remove();
