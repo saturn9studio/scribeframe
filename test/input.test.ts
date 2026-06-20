@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ScribeFrame } from "../src";
+import {
+  EditorPlugin,
+  PluginId,
+  ScribeFrame,
+  WidgetDecoration,
+  WidgetRenderer,
+} from "../src";
 
 const inputFor = (container: HTMLElement): HTMLTextAreaElement => {
   const input = container.querySelector<HTMLTextAreaElement>(".s9-input-proxy");
@@ -40,6 +46,44 @@ const composition = (type: string, data: string): Event => {
   const event = new Event(type, { bubbles: true });
   Object.defineProperty(event, "data", { value: data });
   return event;
+};
+
+const atomicWidgetPlugin = (): EditorPlugin<null> => {
+  const renderer: WidgetRenderer<{ readonly label: string }> = {
+    mount(host, props) {
+      host.textContent = props.label;
+      return {
+        update(nextProps) {
+          host.textContent = nextProps.label;
+        },
+        destroy() {
+          host.textContent = "";
+        },
+      };
+    },
+  };
+
+  return {
+    id: new PluginId<null>("atomic-widget"),
+    init: () => null,
+    apply: () => null,
+    widgets: ({ doc }): readonly WidgetDecoration[] =>
+      doc.paragraphs[1]?.text === "widget"
+        ? [
+            {
+              key: "atomic-widget:middle",
+              placement: "block",
+              range: {
+                from: { paragraph: 1, offset: 0 },
+                to: { paragraph: 1, offset: 6 },
+              },
+              props: { label: "widget" },
+              render: renderer,
+              selection: "block",
+            },
+          ]
+        : [],
+  };
 };
 
 describe("editor input correctness", () => {
@@ -202,6 +246,66 @@ describe("editor input correctness", () => {
 
     editor.undo();
     expect(editor.getContent()).toBe("alpha beta gamma");
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("deletes an adjacent block widget as its full source range with backspace", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ScribeFrame(container, {
+      content: "before\nwidget\nafter",
+      plugins: [atomicWidgetPlugin()],
+    });
+
+    editor.selectRange({
+      from: { paragraph: 1, offset: 6 },
+      to: { paragraph: 1, offset: 6 },
+    });
+    keyDown(container, "Backspace");
+
+    expect(editor.getContent()).toBe("before\n\nafter");
+
+    editor.undo();
+    editor.selectRange({
+      from: { paragraph: 2, offset: 0 },
+      to: { paragraph: 2, offset: 0 },
+    });
+    const event = beforeInput(container, "deleteContentBackward");
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(editor.getContent()).toBe("before\n\nafter");
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("deletes an adjacent block widget as its full source range with forward delete", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ScribeFrame(container, {
+      content: "before\nwidget\nafter",
+      plugins: [atomicWidgetPlugin()],
+    });
+
+    editor.selectRange({
+      from: { paragraph: 1, offset: 0 },
+      to: { paragraph: 1, offset: 0 },
+    });
+    keyDown(container, "Delete");
+
+    expect(editor.getContent()).toBe("before\n\nafter");
+
+    editor.undo();
+    editor.selectRange({
+      from: { paragraph: 0, offset: 6 },
+      to: { paragraph: 0, offset: 6 },
+    });
+    const event = beforeInput(container, "deleteContentForward");
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(editor.getContent()).toBe("before\n\nafter");
 
     editor.destroy();
     container.remove();
