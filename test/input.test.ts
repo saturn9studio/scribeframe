@@ -86,6 +86,44 @@ const atomicWidgetPlugin = (): EditorPlugin<null> => {
   };
 };
 
+const inlineWidgetPlugin = (): EditorPlugin<null> => {
+  const renderer: WidgetRenderer<{ readonly label: string }> = {
+    mount(host, props) {
+      host.textContent = props.label;
+      return {
+        update(nextProps) {
+          host.textContent = nextProps.label;
+        },
+        destroy() {
+          host.textContent = "";
+        },
+      };
+    },
+  };
+
+  return {
+    id: new PluginId<null>("inline-widget"),
+    init: () => null,
+    apply: () => null,
+    widgets: ({ doc }): readonly WidgetDecoration[] =>
+      doc.paragraphs[1]?.text === "widget"
+        ? [
+            {
+              key: "inline-widget:middle",
+              placement: "inline",
+              range: {
+                from: { paragraph: 1, offset: 0 },
+                to: { paragraph: 1, offset: 6 },
+              },
+              props: { label: "widget" },
+              render: renderer,
+              selection: "atom",
+            },
+          ]
+        : [],
+  };
+};
+
 describe("editor input correctness", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -305,6 +343,26 @@ describe("editor input correctness", () => {
     const event = beforeInput(container, "deleteContentForward");
 
     expect(event.defaultPrevented).toBe(true);
+    expect(editor.getContent()).toBe("before\n\nafter");
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("deletes an adjacent inline atom widget as its full source range", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ScribeFrame(container, {
+      content: "before\nwidget\nafter",
+      plugins: [inlineWidgetPlugin()],
+    });
+
+    editor.selectRange({
+      from: { paragraph: 1, offset: 6 },
+      to: { paragraph: 1, offset: 6 },
+    });
+    keyDown(container, "Backspace");
+
     expect(editor.getContent()).toBe("before\n\nafter");
 
     editor.destroy();

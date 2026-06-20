@@ -53,6 +53,13 @@ type InlineDecoration = Extract<EditorDecoration, { kind: "inline" }>;
 type BlockDecoration = Extract<EditorDecoration, { kind: "block" }>;
 type RangeDecoration = Extract<EditorDecoration, { from: number; to: number }>;
 
+interface InlineWidgetFragment {
+  readonly widget: WidgetDecoration;
+  readonly from: number;
+  readonly to: number;
+  readonly render: boolean;
+}
+
 interface RenderIndex {
   readonly paragraphStarts: readonly number[];
   readonly blockDecorationsByParagraph: ReadonlyMap<
@@ -66,6 +73,10 @@ interface RenderIndex {
   readonly inlineDecorationsByParagraph: ReadonlyMap<
     number,
     readonly InlineDecoration[]
+  >;
+  readonly inlineWidgetsByParagraph: ReadonlyMap<
+    number,
+    readonly InlineWidgetFragment[]
   >;
   readonly blockWidgetsByParagraph: ReadonlyMap<number, readonly WidgetDecoration[]>;
   readonly blockWidgetCoveredParagraphs: ReadonlyMap<
@@ -181,6 +192,7 @@ const splitPointsForParagraph = (
   paragraphLength: number,
   paragraphFrom: number,
   decorations: readonly RangeDecoration[],
+  inlineWidgets: readonly InlineWidgetFragment[] = [],
 ): number[] => {
   const paragraphTo = paragraphFrom + paragraphLength;
   const points = new Set<number>([0, paragraphLength]);
@@ -189,6 +201,11 @@ const splitPointsForParagraph = (
     if (decoration.to <= paragraphFrom || decoration.from >= paragraphTo) return;
     points.add(Math.max(0, decoration.from - paragraphFrom));
     points.add(Math.min(paragraphLength, decoration.to - paragraphFrom));
+  });
+
+  inlineWidgets.forEach((widget) => {
+    points.add(Math.max(0, Math.min(paragraphLength, widget.from)));
+    points.add(Math.max(0, Math.min(paragraphLength, widget.to)));
   });
 
   return [...points].sort((a, b) => a - b);
@@ -329,6 +346,7 @@ const buildRenderIndex = (input: RendererInput): RenderIndex => {
   const blockDecorationsByParagraph = new Map<number, BlockDecoration[]>();
   const rangeDecorationsByParagraph = new Map<number, RangeDecoration[]>();
   const inlineDecorationsByParagraph = new Map<number, InlineDecoration[]>();
+  const inlineWidgetsByParagraph = new Map<number, InlineWidgetFragment[]>();
   const blockWidgetsByParagraph = new Map<number, WidgetDecoration[]>();
   const blockWidgetCoveredParagraphs = new Map<WidgetKey, number[]>();
   const blockWidgetCoverage = new Set<number>();
@@ -359,14 +377,40 @@ const buildRenderIndex = (input: RendererInput): RenderIndex => {
   });
 
   input.widgets.forEach((widget) => {
-    if (widget.placement !== "block") return;
-
     const from = positionOffset(input.doc, paragraphStarts, widget.range.from);
     const to = positionOffset(input.doc, paragraphStarts, widget.range.to);
     const span = rangeParagraphSpan(input.doc, paragraphStarts, from, to);
+    const startParagraph = clampPosition(input.doc, widget.range.from).paragraph;
+
+    if (widget.placement === "inline") {
+      for (
+        let paragraphIndex = span.from;
+        paragraphIndex <= span.to;
+        paragraphIndex += 1
+      ) {
+        const paragraphRange = paragraphRangeFromStarts(
+          input.doc,
+          paragraphStarts,
+          paragraphIndex,
+        );
+        const overlaps =
+          (paragraphRange.to > from && paragraphRange.from < to) ||
+          (from === to && paragraphIndex === startParagraph);
+        if (!overlaps) continue;
+
+        appendMapValue(inlineWidgetsByParagraph, paragraphIndex, {
+          widget,
+          from: Math.max(0, from - paragraphRange.from),
+          to: Math.min(paragraphRange.to, to) - paragraphRange.from,
+          render: paragraphIndex === startParagraph,
+        });
+      }
+      return;
+    }
+
     appendMapValue(
       blockWidgetsByParagraph,
-      clampPosition(input.doc, widget.range.from).paragraph,
+      startParagraph,
       widget,
     );
 
@@ -392,6 +436,7 @@ const buildRenderIndex = (input: RendererInput): RenderIndex => {
     blockDecorationsByParagraph,
     rangeDecorationsByParagraph,
     inlineDecorationsByParagraph,
+    inlineWidgetsByParagraph,
     blockWidgetsByParagraph,
     blockWidgetCoveredParagraphs,
     blockWidgetCoverage,
@@ -518,18 +563,38 @@ export class Renderer {
         index.rangeDecorationsByParagraph.get(paragraphIndex) ?? [];
       const inlineDecorations =
         index.inlineDecorationsByParagraph.get(paragraphIndex) ?? [];
+      const inlineWidgets =
+        index.inlineWidgetsByParagraph.get(paragraphIndex) ?? [];
       const points = splitPointsForParagraph(
         item.text.length,
         paragraphRange.from,
         rangeDecorations,
+        inlineWidgets,
       );
 
       if (item.text.length === 0) {
+        this.appendInlineWidgetsAt(
+          paragraphElement,
+          inlineWidgets,
+          0,
+          input,
+          mountedWidgetKeys,
+        );
         paragraphElement.append(document.createTextNode("\u200b"));
       } else {
         points.slice(0, -1).forEach((point, index) => {
           const nextPoint = points[index + 1];
+          this.appendInlineWidgetsAt(
+            paragraphElement,
+            inlineWidgets,
+            point,
+            input,
+            mountedWidgetKeys,
+          );
           if (point === nextPoint) return;
+          if (this.segmentCoveredByInlineWidget(inlineWidgets, point, nextPoint)) {
+            return;
+          }
 
           const span = document.createElement("span");
           const text = item.text.slice(point, nextPoint);
@@ -559,6 +624,13 @@ export class Renderer {
             to: nextPoint,
           });
         });
+        this.appendInlineWidgetsAt(
+          paragraphElement,
+          inlineWidgets,
+          item.text.length,
+          input,
+          mountedWidgetKeys,
+        );
       }
 
       nextSurface.append(paragraphElement);
@@ -972,6 +1044,29 @@ export class Renderer {
     host.classList.toggle("s9-widget-readonly", input.readOnly);
 
     return host;
+  }
+
+  private appendInlineWidgetsAt(
+    paragraphElement: HTMLElement,
+    widgets: readonly InlineWidgetFragment[],
+    offset: number,
+    input: RendererInput,
+    mountedWidgetKeys: Set<WidgetKey>,
+  ): void {
+    widgets
+      .filter((item) => item.render && item.from === offset)
+      .forEach(({ widget }) => {
+        mountedWidgetKeys.add(widget.key);
+        paragraphElement.append(this.hostForWidget(widget, input));
+      });
+  }
+
+  private segmentCoveredByInlineWidget(
+    widgets: readonly InlineWidgetFragment[],
+    from: number,
+    to: number,
+  ): boolean {
+    return widgets.some((widget) => widget.to > from && widget.from < to);
   }
 
   private updateWidget<TProps>(
