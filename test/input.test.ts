@@ -86,6 +86,44 @@ const atomicWidgetPlugin = (): EditorPlugin<null> => {
   };
 };
 
+const reservedInlineWidgetPlugin = (): EditorPlugin<null> => {
+  const renderer: WidgetRenderer<{ readonly label: string }> = {
+    mount(host, props) {
+      host.textContent = props.label;
+      return {
+        update(nextProps) {
+          host.textContent = nextProps.label;
+        },
+        destroy() {
+          host.textContent = "";
+        },
+      };
+    },
+  };
+
+  return {
+    id: new PluginId<null>("reserved-inline-widget"),
+    init: () => null,
+    apply: () => null,
+    widgets: ({ doc }): readonly WidgetDecoration[] =>
+      doc.paragraphs[1]?.text === "widget"
+        ? [
+            {
+              key: "reserved-inline-widget:middle",
+              placement: "inline",
+              range: {
+                from: { paragraph: 1, offset: 0 },
+                to: { paragraph: 1, offset: 6 },
+              },
+              props: { label: "widget" },
+              render: renderer,
+              selection: "atom",
+            },
+          ]
+        : [],
+  };
+};
+
 describe("editor input correctness", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -306,6 +344,27 @@ describe("editor input correctness", () => {
 
     expect(event.defaultPrevented).toBe(true);
     expect(editor.getContent()).toBe("before\n\nafter");
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("does not apply block widget deletion semantics to reserved inline placements", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ScribeFrame(container, {
+      content: "before\nwidget\nafter",
+      plugins: [reservedInlineWidgetPlugin()],
+    });
+
+    editor.selectRange({
+      from: { paragraph: 1, offset: 6 },
+      to: { paragraph: 1, offset: 6 },
+    });
+    keyDown(container, "Backspace");
+
+    expect(container.querySelector(".s9-widget-inline")).toBeNull();
+    expect(editor.getContent()).toBe("before\nwidge\nafter");
 
     editor.destroy();
     container.remove();

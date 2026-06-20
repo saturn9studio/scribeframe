@@ -1190,7 +1190,7 @@ export class ScribeFrame {
         : nextPosition(this.doc, head);
     const output = this.collectOutput();
     const widgets = output.widgets
-      .filter((widget) => widget.selection !== "inline")
+      .filter((widget) => widget.placement === "block" && widget.selection !== "inline")
       .map((widget) => this.normalizedWidgetRange(widget))
       .filter((range) => !isSamePosition(range.from, range.to));
 
