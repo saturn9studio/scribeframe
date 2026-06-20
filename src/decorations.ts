@@ -33,7 +33,7 @@ export type EditorDecoration =
   | BlockDecoration
   | AnnotationDecoration;
 
-export type WidgetPlacement = "inline" | "block" | "gutter" | "overlay";
+export type WidgetPlacement = "inline" | "block";
 export type WidgetSelectionBehavior = "inline" | "atom" | "block";
 
 export interface WidgetContext {

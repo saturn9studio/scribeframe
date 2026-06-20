@@ -307,7 +307,7 @@ const renderer: WidgetRenderer<{ readonly label: string }> = {
 | Property | Description |
 | --- | --- |
 | `key` | Stable plugin-scoped `WidgetKey`, usually `` `${pluginName}:${localId}` ``. |
-| `placement` | `"block"` for the current `ScribeFrame` renderer. The public type also reserves `"inline"`, `"gutter"`, and `"overlay"` for advanced/custom renderers and future placement support. |
+| `placement` | `"block"` for widgets rendered before a paragraph, or `"inline"` for widgets rendered inside paragraph text while replacing their covered source range. |
 | `range` | Document range covered by the widget. |
 | `contentRange` | Optional editable inner range used by `WidgetContext.replaceContent()`. |
 | `props` | Immutable props passed to `mount` and `update`. |
