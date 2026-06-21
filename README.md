@@ -3,6 +3,8 @@
 `@saturn9/scribeframe` is a format-agnostic text editor engine with owned
 document state, rendering, input, plugins, and widget lifecycle.
 
+Live demo: https://saturn9studio.github.io/scribeframe/
+
 ## Install
 
 ```bash
