@@ -3,6 +3,7 @@ import {
   ScribeFrame,
   PluginId,
   createTransaction,
+  documentToText,
   type EditorPlugin,
 } from "../src";
 
@@ -173,6 +174,55 @@ describe("plugin lifecycle", () => {
     );
 
     expect(editor.getPluginState(id)).toEqual({ count: 11 });
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("notifies plugins of previous state when content is externally replaced", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const id = new PluginId<null>("set-content-previous-state");
+    const applyContexts: Array<{
+      readonly content: string;
+      readonly previousContent: string;
+      readonly previousSelectionHead: number;
+      readonly selectionHead: number;
+    }> = [];
+    const plugin: EditorPlugin<null> = {
+      id,
+      init: () => null,
+      apply: ({ content, previousDoc, previousSelection, selection }) => {
+        applyContexts.push({
+          content,
+          previousContent: documentToText(previousDoc),
+          previousSelectionHead: previousSelection.head.offset,
+          selectionHead: selection.head.offset,
+        });
+        return null;
+      },
+    };
+    const editor = new ScribeFrame(container, {
+      content: "old",
+      plugins: [plugin],
+    });
+
+    editor.selectRange({
+      from: { paragraph: 0, offset: 2 },
+      to: { paragraph: 0, offset: 2 },
+    });
+    applyContexts.length = 0;
+
+    editor.setContent("new");
+
+    expect(applyContexts).toEqual([
+      {
+        content: "new",
+        previousContent: "old",
+        previousSelectionHead: 2,
+        selectionHead: 0,
+      },
+    ]);
 
     editor.destroy();
     container.remove();

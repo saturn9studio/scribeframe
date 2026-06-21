@@ -69,31 +69,14 @@ export interface WidgetDecoration<TProps = unknown> {
   readonly selection: WidgetSelectionBehavior;
 }
 
-export interface ExtensionInstance<TData = unknown> {
-  readonly key: WidgetKey;
-  readonly kind: string;
-  readonly range: Range;
-  readonly contentRange?: Range;
-  readonly blockRange?: Range;
-  readonly data: TData;
-  readonly identity: ExtensionIdentity;
-}
-
-export type ExtensionIdentity =
-  | { readonly kind: "persistent"; readonly id: string }
-  | { readonly kind: "derived"; readonly fingerprint: string }
-  | { readonly kind: "ephemeral" };
-
 export interface RenderOutput {
   readonly decorations: readonly EditorDecoration[];
   readonly widgets: readonly WidgetDecoration[];
-  readonly instances: readonly ExtensionInstance[];
 }
 
 export const emptyRenderOutput = (): RenderOutput => ({
   decorations: [],
   widgets: [],
-  instances: [],
 });
 
 export interface EditorSnapshot {

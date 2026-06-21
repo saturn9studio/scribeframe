@@ -39,9 +39,8 @@ import {
 import {
   EditorPlugin,
   PluginId,
-  PluginSlot,
-  createPluginSlot,
 } from "./plugin.js";
+import { PluginSlot, createPluginSlot } from "./pluginSlot.js";
 import {
   Renderer,
   type RendererRevealOptions,
@@ -439,13 +438,17 @@ export class ScribeFrame {
   }
 
   setContent(content: string): void {
+    const transaction = createTransaction(this.doc, this.selection)
+      .replaceRange(firstPosition(), lastPosition(this.doc), content)
+      .setSelection(collapsedSelection(firstPosition()))
+      .build();
+
     this.content = content;
-    this.doc = documentFromText(content);
-    this.selection = collapsedSelection(firstPosition());
+    this.doc = transaction.docAfter;
+    this.selection = transaction.selectionAfter;
     this.syntax = this.syntaxProvider.create(this.doc);
     this.history.reset();
     this.slots.forEach((slot) => {
-      const transaction = createTransaction(this.doc, this.selection).build();
       slot.apply(transaction, this.snapshot());
     });
     this.render();
@@ -1238,12 +1241,11 @@ export class ScribeFrame {
       (combined, slot) => {
         const output = slot.output(snapshot);
         return {
-          instances: [...combined.instances, ...output.instances],
           decorations: [...combined.decorations, ...output.decorations],
           widgets: [...combined.widgets, ...output.widgets],
         };
       },
-      { instances: [], decorations: [], widgets: [] },
+      { decorations: [], widgets: [] },
     );
   }
 

@@ -69,7 +69,7 @@ const editor = new ScribeFrame(hostElement, {
 | `canUndo()` / `canRedo()` | Reports whether undo/redo is available and not read-only. |
 | `undo()` / `redo()` | Restores editor-owned history snapshots. |
 | `clearHistory()` | Clears undo and redo stacks without changing content. |
-| `setContent(content)` | Replaces the whole document, resets selection and history, and notifies plugins. |
+| `setContent(content)` | Externally replaces the whole document, resets selection and history, and notifies plugins with the previous document/selection. |
 | `setReadOnly(readOnly)` | Toggles read-only state and renderer affordances. |
 | `setPlugins(plugins)` | Reconfigures plugins at runtime, preserving state for retained `PluginId` objects. |
 | `focus(position?)` | Focuses the hidden input proxy and optionally moves selection first. |
@@ -231,7 +231,6 @@ const counterPlugin = (): EditorPlugin<CounterState> => ({
 | `id` | Stable `PluginId<S>` object used for state identity. |
 | `init(context)` | Creates initial plugin state. |
 | `apply(context)` | Receives every transaction and returns next state. |
-| `instances?(context)` | Returns semantic extension instances discovered from document/syntax state. |
 | `decorations?(context)` | Returns inline, block, or annotation decorations. |
 | `widgets?(context)` | Returns widget descriptions. |
 | `commands?(context)` | Returns plugin-provided commands. |
@@ -268,7 +267,7 @@ example, detect a link by inspecting the attrs of an inline decoration it owns.
 `PluginId` is identity-based: reuse the same exported id object to preserve state
 across `setPlugins()` reconfiguration.
 
-## Decorations, widgets, and instances
+## Decorations and widgets
 
 Decorations are pure descriptions returned by plugins:
 
@@ -279,8 +278,8 @@ Decorations are pure descriptions returned by plugins:
 | `AnnotationDecoration<T>` | `{ kind: "annotation", key, from, to, annotationKind, data, className? }` | Attaches typed range metadata and optional class styling. |
 
 `InlineDecoration.from` / `to` and `AnnotationDecoration.from` / `to` are
-whole-document display-text offsets. `WidgetDecoration.range` and
-`ExtensionInstance.range` use `Range` objects with paragraph `Position`s.
+whole-document display-text offsets. `WidgetDecoration.range` uses `Range`
+objects with paragraph `Position`s.
 
 Widgets are renderer-owned DOM islands:
 
@@ -318,10 +317,6 @@ const renderer: WidgetRenderer<{ readonly label: string }> = {
 
 `WidgetContext` exposes `key`, `readOnly`, `dispatch`, `replaceSelf`,
 `replaceContent`, `deleteSelf`, and `focusEditor`.
-
-`ExtensionInstance<TData>` is for plugin-defined semantic structures that map
-back to document ranges, such as code blocks, comments, or suggestions. Its
-`identity` can be persistent, derived, or ephemeral.
 
 ## Syntax providers
 
@@ -363,13 +358,6 @@ transaction.meta.get(sourceMetaKey); // "toolbar" | "paste" | undefined
 typing, delete, boundary, and widget edit history events. Most consumers should
 use `ScribeFrame` history methods rather than constructing `EditorHistory`
 directly; `EditorHistory` is exported for advanced integrations and tests.
-
-## Renderer exports
-
-`Renderer`, `RendererInput`, `RendererActions`, and renderer option/result types
-are exported for advanced embedders, but the supported application-level entry
-point is `ScribeFrame`. Prefer `ScribeFrame` unless you are building a custom
-host that intentionally owns editor state, plugin execution, and input handling.
 
 ## Styles and DOM contract
 

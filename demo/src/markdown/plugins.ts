@@ -248,17 +248,6 @@ export const codeBlockWidgetPlugin = (): EditorPlugin<EmptyPluginState> => ({
   id: codeBlockWidgetPluginId,
   init: () => emptyState,
   apply: () => emptyState,
-  instances: ({ doc, syntax }) =>
-    findCodeBlocks(doc, syntax).map((block) => ({
-      key: block.key,
-      kind: "code-block",
-      range: block.range,
-      data: {
-        language: block.language,
-        content: block.content,
-      },
-      identity: { kind: "derived", fingerprint: block.key },
-    })),
   widgets: ({ doc, syntax }) =>
     findCodeBlocks(doc, syntax).map(
       (block): WidgetDecoration<{
