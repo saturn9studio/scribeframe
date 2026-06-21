@@ -11,11 +11,34 @@ const run = (command, args, options = {}) =>
   execFileSync(command, args, {
     cwd: packageRoot,
     encoding: "utf8",
+    env: {
+      ...process.env,
+      npm_config_dry_run: "false",
+      npm_config_json: "false",
+      ...options.env,
+    },
     stdio: "pipe",
     ...options,
   });
 
-const tarballName = run(npm, ["pack", "--silent", "--ignore-scripts"]).trim();
+const tarballNameFromPackOutput = (output) => {
+  const trimmed = output.trim();
+  try {
+    const packResult = JSON.parse(trimmed);
+    const filename = packResult?.[0]?.filename;
+    if (typeof filename === "string" && filename.length > 0) return filename;
+  } catch {
+    // npm prints the tarball filename in plain text outside JSON publish mode.
+  }
+
+  const filename = trimmed.split(/\r?\n/u).filter(Boolean).at(-1);
+  if (!filename) throw new Error("npm pack did not report a tarball filename");
+  return filename;
+};
+
+const tarballName = tarballNameFromPackOutput(
+  run(npm, ["pack", "--silent", "--ignore-scripts", "--dry-run=false"]),
+);
 const tarballPath = join(packageRoot, tarballName);
 const workspace = join(tmpdir(), `scribeframe-pack-smoke-${process.pid}`);
 
