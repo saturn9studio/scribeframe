@@ -119,15 +119,10 @@ Helpers exported from the package root include:
 | `collapsedSelection(position)` | Creates a collapsed selection. |
 | `comparePositions(a, b)` / `isSamePosition(a, b)` | Position comparison helpers. |
 | `normalizeRange(selection)` | Returns `{ from, to }` in document order. |
-| `clampPosition(doc, position)` / `clampSelection(doc, selection)` | Clamp positions to document bounds. |
 | `absoluteOffset(doc, position)` / `positionFromOffset(doc, offset)` | Convert between paragraph positions and whole-document offsets. |
 | `paragraphAbsoluteRange(doc, paragraphIndex)` | Whole-document offset span for one paragraph. |
 | `textInRange(doc, selection)` | Extracts display text for a selection. |
 | `previousPosition` / `nextPosition` | Grapheme-aware document movement. |
-| `previousWordPosition` / `nextWordPosition` | Word-aware document movement. |
-| `wordRangeAtPosition(doc, position)` | Returns the word range near a position, or `null`. |
-| `previousGraphemeOffset` / `nextGraphemeOffset` | Grapheme-aware movement inside a string. |
-| `previousWordOffset` / `nextWordOffset` | Word-aware movement inside a string. |
 
 ## Transactions
 
@@ -159,8 +154,7 @@ editor.dispatch(transaction);
 | `build()` | Produces an immutable `Transaction`. |
 
 `Transaction` exposes `steps`, `displayChanges`, `docBefore`, `docAfter`,
-`selectionBefore`, `selectionAfter`, and `meta`. `applyStep(doc, step)` is
-available for integrations that need to apply a single `Step` outside an editor.
+`selectionBefore`, `selectionAfter`, and `meta`.
 `ScribeFrame.dispatch()` throws `StaleTransactionError` if a transaction was
 built from a document snapshot that is no longer current.
 
@@ -231,7 +225,7 @@ const counterPlugin = (): EditorPlugin<CounterState> => ({
 | `id` | Stable `PluginId<S>` object used for state identity. |
 | `init(context)` | Creates initial plugin state. |
 | `apply(context)` | Receives every transaction and returns next state. |
-| `decorations?(context)` | Returns inline, block, or annotation decorations. |
+| `decorations?(context)` | Returns inline or block decorations. |
 | `widgets?(context)` | Returns widget descriptions. |
 | `commands?(context)` | Returns plugin-provided commands. |
 | `destroy?(context)` | Releases external resources when removed or editor is destroyed. |
@@ -275,11 +269,9 @@ Decorations are pure descriptions returned by plugins:
 | --- | --- | --- |
 | `InlineDecoration` | `{ kind: "inline", from, to, attrs }` | Adds attributes/classes to text ranges. |
 | `BlockDecoration` | `{ kind: "block", paragraph, attrs }` | Adds attributes/classes to a paragraph element. |
-| `AnnotationDecoration<T>` | `{ kind: "annotation", key, from, to, annotationKind, data, className? }` | Attaches typed range metadata and optional class styling. |
 
-`InlineDecoration.from` / `to` and `AnnotationDecoration.from` / `to` are
-whole-document display-text offsets. `WidgetDecoration.range` uses `Range`
-objects with paragraph `Position`s.
+`InlineDecoration.from` / `to` are whole-document display-text offsets.
+`WidgetDecoration.range` uses `Range` objects with paragraph `Position`s.
 
 Widgets are renderer-owned DOM islands:
 
@@ -357,7 +349,9 @@ transaction.meta.get(sourceMetaKey); // "toolbar" | "paste" | undefined
 `historyEventMetaKey` is the built-in metadata key used by the editor to batch
 typing, delete, boundary, and widget edit history events. Most consumers should
 use `ScribeFrame` history methods rather than constructing `EditorHistory`
-directly; `EditorHistory` is exported for advanced integrations and tests.
+directly. `EditorHistory`, `HistorySnapshot`, `HistoryEntry`, and
+`HistoryRestore` are exported for integrations that need to save and restore
+per-document history alongside editor content.
 
 ## Styles and DOM contract
 

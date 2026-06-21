@@ -1,10 +1,105 @@
-export * from "./commands.js";
-export * from "./decorations.js";
-export * from "./editor.js";
-export * from "./history.js";
-export * from "./interaction.js";
-export * from "./metadata.js";
-export * from "./model.js";
-export * from "./plugin.js";
-export * from "./syntax.js";
-export * from "./transaction.js";
+export {
+  defaultEditorKeymap,
+  editorCommandNames,
+  keyBindingMatches,
+  type EditorCommand,
+  type EditorCommandContext,
+  type EditorCommandSnapshot,
+  type EditorKeyBinding,
+} from "./commands.js";
+export {
+  type BlockDecoration,
+  type EditorDecoration,
+  type EditorSnapshot,
+  type InlineDecoration,
+  type PluginName,
+  type WidgetContext,
+  type WidgetDecoration,
+  type WidgetHandle,
+  type WidgetKey,
+  type WidgetPlacement,
+  type WidgetRenderer,
+  type WidgetSelectionBehavior,
+} from "./decorations.js";
+export {
+  ScribeFrame,
+  StaleTransactionError,
+  type EditorRevealOptions,
+  type EditorScrollState,
+  type EditorSelectRangeOptions,
+  type EditorStateSnapshot,
+  type EditorVirtualizationOptions,
+  type ScribeFrameOptions,
+} from "./editor.js";
+export {
+  EditorHistory,
+  historyEventMetaKey,
+  type EditorHistoryOptions,
+  type HistoryEntry,
+  type HistoryEvent,
+  type HistoryRestore,
+  type HistorySnapshot,
+} from "./history.js";
+export {
+  type DecorationInteractionTarget,
+  type EditorInteraction,
+  type EditorInteractionModifiers,
+  type EditorInteractionTarget,
+  type EditorInteractionType,
+  type RenderedInteractionHit,
+  type WidgetInteractionTarget,
+} from "./interaction.js";
+export {
+  createTransactionMetaKey,
+  TransactionMetaStore,
+  type TransactionMetaKey,
+} from "./metadata.js";
+export {
+  absoluteOffset,
+  collapsedSelection,
+  comparePositions,
+  createDocument,
+  documentFromText,
+  documentToText,
+  firstPosition,
+  isSamePosition,
+  lastPosition,
+  nextPosition,
+  normalizeRange,
+  paragraph,
+  paragraphAbsoluteRange,
+  positionFromOffset,
+  previousPosition,
+  selectionIsCollapsed,
+  textInRange,
+  type EditorDocument,
+  type Paragraph,
+  type Position,
+  type Range,
+  type Selection,
+} from "./model.js";
+export {
+  type EditorPlugin,
+  type EditorPluginProps,
+  type PluginApplyContext,
+  type PluginCommandContext,
+  type PluginDestroyContext,
+  PluginId,
+  type PluginInitContext,
+  type PluginInputContext,
+  type PluginInteractionContext,
+  type PluginOutputContext,
+} from "./plugin.js";
+export {
+  emptySyntaxProvider,
+  emptySyntaxSnapshot,
+  type SyntaxProvider,
+  type SyntaxSnapshot,
+} from "./syntax.js";
+export {
+  createTransaction,
+  TransactionBuilder,
+  type DisplayChange,
+  type Step,
+  type Transaction,
+} from "./transaction.js";

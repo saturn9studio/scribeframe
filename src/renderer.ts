@@ -173,7 +173,7 @@ const isBlockDecoration = (
 const isRangeDecoration = (
   decoration: EditorDecoration,
 ): decoration is Extract<EditorDecoration, { from: number; to: number }> =>
-  decoration.kind === "inline" || decoration.kind === "annotation";
+  decoration.kind === "inline";
 
 const classNamesForRange = (
   decorations: readonly RangeDecoration[],
@@ -182,10 +182,7 @@ const classNamesForRange = (
 ): string[] =>
   decorations.flatMap((decoration) => {
     if (decoration.to <= from || decoration.from >= to) return [];
-    if (isInlineDecoration(decoration)) {
-      return decoration.attrs.class ? [decoration.attrs.class] : [];
-    }
-    return decoration.className ? [decoration.className] : [];
+    return decoration.attrs.class ? [decoration.attrs.class] : [];
   });
 
 const splitPointsForParagraph = (

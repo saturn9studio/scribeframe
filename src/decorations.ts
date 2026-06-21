@@ -18,20 +18,9 @@ export interface BlockDecoration {
   readonly attrs: Readonly<Record<string, string>>;
 }
 
-export interface AnnotationDecoration<TData = unknown> {
-  readonly kind: "annotation";
-  readonly key: WidgetKey;
-  readonly from: number;
-  readonly to: number;
-  readonly annotationKind: string;
-  readonly data: TData;
-  readonly className?: string;
-}
-
 export type EditorDecoration =
   | InlineDecoration
-  | BlockDecoration
-  | AnnotationDecoration;
+  | BlockDecoration;
 
 export type WidgetPlacement = "inline" | "block";
 export type WidgetSelectionBehavior = "inline" | "atom" | "block";
@@ -73,11 +62,6 @@ export interface RenderOutput {
   readonly decorations: readonly EditorDecoration[];
   readonly widgets: readonly WidgetDecoration[];
 }
-
-export const emptyRenderOutput = (): RenderOutput => ({
-  decorations: [],
-  widgets: [],
-});
 
 export interface EditorSnapshot {
   readonly doc: EditorDocument;
