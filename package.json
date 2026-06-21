@@ -43,7 +43,8 @@
     "browser:test": "playwright test -c playwright.config.ts",
     "demo": "vite --config demo/vite.config.ts",
     "demo:typecheck": "tsc -p demo/tsconfig.json --noEmit",
-    "demo:build": "vite build --config demo/vite.config.ts"
+    "demo:build": "vite build --config demo/vite.config.ts",
+    "demo:build:pages": "vite build --config demo/vite.config.ts --base=/scribeframe/"
   },
   "author": "Saturn9 LLC",
   "license": "MIT",
