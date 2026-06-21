@@ -46,9 +46,12 @@ button:disabled:hover {
   border: 1px solid #dfd2c2;
   border-radius: 12px;
   box-shadow: 0 12px 40px rgba(49, 38, 26, 0.08);
+  min-height: 0;
 }
 
 .demo-main {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   overflow: hidden;
 }
@@ -57,6 +60,7 @@ button:disabled:hover {
   align-items: center;
   border-bottom: 1px solid #e5d9c9;
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 10px 12px;
 }
@@ -74,9 +78,13 @@ button:disabled:hover {
   color: #8f7e6d;
   font-size: 12px;
   margin-right: 8px;
+  min-width: 0;
 }
 
 .demo-editor-host {
+  --s9-editor-surface-padding: 28px 36px 64px;
+
+  flex: 1;
   height: calc(100vh - 96px);
   min-height: 360px;
 }
@@ -188,6 +196,63 @@ button:disabled:hover {
   font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   margin: 0;
   overflow: auto;
+  overflow-wrap: anywhere;
   padding: 10px;
   white-space: pre-wrap;
+}
+
+@media (max-width: 900px) {
+  .demo-shell {
+    --demo-mobile-editor-height: 58vh;
+    --demo-mobile-editor-min-height: 320px;
+    --demo-mobile-editor-max-height: 520px;
+    --demo-mobile-output-max-height: 32vh;
+
+    grid-template-columns: minmax(0, 1fr);
+    min-height: auto;
+    padding: 16px;
+  }
+
+  .demo-status {
+    flex-basis: 100%;
+    margin-right: 0;
+    order: 1;
+  }
+
+  .demo-editor-host {
+    --s9-editor-surface-padding: 20px 20px 40px;
+
+    flex: 0 0 auto;
+    height: clamp(
+      var(--demo-mobile-editor-min-height),
+      var(--demo-mobile-editor-height),
+      var(--demo-mobile-editor-max-height)
+    );
+  }
+
+  .demo-output {
+    max-height: var(--demo-mobile-output-max-height);
+  }
+}
+
+@media (max-width: 640px) {
+  .demo-shell {
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .demo-toolbar {
+    gap: 6px;
+    padding: 10px;
+  }
+
+  .demo-title {
+    width: 100%;
+  }
+
+  .demo-editor-host {
+    --s9-editor-surface-padding: 16px 14px 32px;
+
+    min-height: 300px;
+  }
 }

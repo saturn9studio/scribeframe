@@ -145,3 +145,38 @@ test("triple-clicking text selects the paragraph for replacement", async ({
     "# Scribeframe Demo\n\nReplacement paragraph\n\n~~~ts",
   );
 });
+
+test("mobile layout stacks document output below the editor", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  const layout = await page.evaluate(() => {
+    const shell = document.querySelector<HTMLElement>(".demo-shell");
+    const main = document.querySelector<HTMLElement>(".demo-main");
+    const side = document.querySelector<HTMLElement>(".demo-side");
+    const host = document.querySelector<HTMLElement>(".demo-editor-host");
+    const output = document.querySelector<HTMLElement>(".demo-output");
+
+    if (!shell || !main || !side || !host || !output) {
+      throw new Error("Demo layout elements not found");
+    }
+
+    const shellColumns = getComputedStyle(shell).gridTemplateColumns
+      .split(" ")
+      .filter(Boolean).length;
+
+    return {
+      shellColumns,
+      mainBottom: main.getBoundingClientRect().bottom,
+      sideTop: side.getBoundingClientRect().top,
+      hostHeight: host.getBoundingClientRect().height,
+      outputHeight: output.getBoundingClientRect().height,
+    };
+  });
+
+  expect(layout.shellColumns).toBe(1);
+  expect(layout.sideTop).toBeGreaterThanOrEqual(layout.mainBottom - 1);
+  expect(layout.hostHeight).toBeGreaterThanOrEqual(300);
+  expect(layout.outputHeight).toBeGreaterThan(0);
+});
