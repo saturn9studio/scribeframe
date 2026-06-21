@@ -4,7 +4,7 @@
   "description": "A format-agnostic text editor engine with owned rendering and widget lifecycle",
   "repository": {
     "type": "git",
-    "url": "https://github.com/saturn9studio/scribeframe.git"
+    "url": "git+https://github.com/saturn9studio/scribeframe.git"
   },
   "type": "module",
   "sideEffects": [
@@ -23,6 +23,9 @@
     "./styles.css": "./src/styles.css",
     "./package.json": "./package.json"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "dist",
     "src/styles.css",
@@ -32,9 +35,10 @@
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "build": "npm run clean && tsc -p tsconfig.json",
     "test": "vitest run",
-    "verify": "npm run demo:typecheck && npm run test && npm run build && npm run demo:build && npm run browser:test",
+    "pack:smoke": "node test/packageSmoke.mjs",
+    "verify": "npm run demo:typecheck && npm run test && npm run build && npm run pack:smoke && npm run demo:build && npm run browser:test",
     "prepack": "npm run build",
-    "prepublishOnly": "npm run build && npm run test",
+    "prepublishOnly": "npm run build && npm run test && npm run pack:smoke",
     "browser:install": "playwright install chromium webkit",
     "browser:test": "playwright test -c playwright.config.ts",
     "demo": "vite --config demo/vite.config.ts",

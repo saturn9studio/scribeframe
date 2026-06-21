@@ -80,6 +80,12 @@ describe("scribeframe core boundary", () => {
     );
   });
 
+  it("does not export plugin slot internals from the core barrel", () => {
+    expect(readFileSync(`${srcRoot}/index.ts`, "utf8")).not.toMatch(
+      /pluginSlot/,
+    );
+  });
+
   it("does not expose a Markdown package subpath", () => {
     const manifest = JSON.parse(
       readFileSync(resolve(cwd(), "package.json"), "utf8"),
