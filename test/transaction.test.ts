@@ -8,6 +8,8 @@ import {
   firstPosition,
   positionFromOffset,
   createTransactionMetaKey,
+  ScribeFrame,
+  StaleTransactionError,
 } from "../src";
 
 describe("transactions", () => {
@@ -119,5 +121,27 @@ describe("transactions", () => {
       .build();
 
     expect(tr.displayChanges).toEqual([]);
+  });
+
+  it("rejects transactions built from stale editor document snapshots", () => {
+    const editor = new ScribeFrame(document.createElement("div"), {
+      content: "abc",
+    });
+    const staleTransaction = createTransaction(
+      editor.getDocument(),
+      editor.getSelection(),
+    )
+      .replaceSelection("X")
+      .build();
+
+    editor.setContent("123");
+
+    expect(() => editor.dispatch(staleTransaction)).toThrow(
+      StaleTransactionError,
+    );
+    expect(editor.getContent()).toBe("123");
+    expect(documentToText(editor.getDocument())).toBe("123");
+
+    editor.destroy();
   });
 });

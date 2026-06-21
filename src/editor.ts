@@ -70,6 +70,13 @@ export interface EditorSelectRangeOptions extends EditorRevealOptions {
 
 export interface EditorStateSnapshot extends EditorCommandSnapshot {}
 
+export class StaleTransactionError extends Error {
+  constructor(readonly transaction: Transaction) {
+    super("Cannot dispatch a transaction built from a stale document snapshot");
+    this.name = "StaleTransactionError";
+  }
+}
+
 export interface ScribeFrameOptions {
   readonly ariaLabel?: string;
   readonly content?: string;
@@ -528,6 +535,10 @@ export class ScribeFrame {
   }
 
   dispatch(transaction: Transaction): void {
+    if (transaction.docBefore !== this.doc) {
+      throw new StaleTransactionError(transaction);
+    }
+
     const historyBefore = this.historySnapshot();
     const changesText = transaction.displayChanges.length > 0;
     const contentAfter = changesText
