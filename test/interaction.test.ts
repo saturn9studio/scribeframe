@@ -3,6 +3,8 @@ import {
   EditorPlugin,
   ScribeFrame,
   PluginId,
+  WidgetDecoration,
+  WidgetRenderer,
   type EditorInteraction,
 } from "../src";
 
@@ -58,6 +60,47 @@ const interactionPlugin = (
     },
   },
 });
+
+const inlineWidgetInteractionPlugin = (
+  interactions: EditorInteraction[],
+): EditorPlugin<null> => {
+  const renderer: WidgetRenderer = {
+    mount(host) {
+      host.textContent = "■";
+      return {
+        update() {},
+        destroy() {
+          host.textContent = "";
+        },
+      };
+    },
+  };
+
+  return {
+    id: new PluginId<null>("inline-widget-interaction"),
+    init: () => null,
+    apply: () => null,
+    widgets: (): readonly WidgetDecoration[] => [
+      {
+        key: "inline-widget-interaction:marker",
+        placement: "inline",
+        range: {
+          from: { paragraph: 0, offset: 2 },
+          to: { paragraph: 0, offset: 4 },
+        },
+        props: {},
+        render: renderer,
+        selection: "atom",
+      },
+    ],
+    props: {
+      handleInteraction({ interaction }) {
+        interactions.push(interaction);
+        return true;
+      },
+    },
+  };
+};
 
 const dispatchActivation = (
   element: Element,
@@ -141,6 +184,30 @@ describe("editor interactions", () => {
     dispatchActivation(decorated!, { shiftKey: true });
 
     expect(interactions).toEqual([]);
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("routes rendered inline widget activation to plugin props", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const interactions: EditorInteraction[] = [];
+    const editor = new ScribeFrame(container, {
+      content: "a 🟩 mark",
+      plugins: [inlineWidgetInteractionPlugin(interactions)],
+    });
+    stubPointLookup(() => container.querySelector(".s9-widget-inline"));
+
+    const widget = container.querySelector(".s9-widget-inline");
+    expect(widget).not.toBeNull();
+    dispatchActivation(widget!);
+
+    expect(interactions).toHaveLength(1);
+    expect(interactions[0]?.widgets[0]?.key).toBe("inline-widget-interaction:marker");
+    expect(interactions[0]?.targets.map((target) => target.kind)).toEqual([
+      "widget",
+    ]);
 
     editor.destroy();
     container.remove();

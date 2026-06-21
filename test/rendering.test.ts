@@ -83,6 +83,41 @@ const zeroLengthBlockWidgetPlugin = (): EditorPlugin<null> => {
   };
 };
 
+const inlineWidgetPlugin = (): EditorPlugin<null> => {
+  const renderer: WidgetRenderer<{ readonly label: string }> = {
+    mount(host, props) {
+      host.textContent = props.label;
+      return {
+        update(nextProps) {
+          host.textContent = nextProps.label;
+        },
+        destroy() {
+          host.textContent = "";
+        },
+      };
+    },
+  };
+
+  return {
+    id: new PluginId<null>("inline-widget"),
+    init: () => null,
+    apply: () => null,
+    widgets: (): readonly WidgetDecoration[] => [
+      {
+        key: "inline-widget:color",
+        placement: "inline",
+        range: {
+          from: { paragraph: 0, offset: 2 },
+          to: { paragraph: 0, offset: 4 },
+        },
+        props: { label: "■" },
+        render: renderer,
+        selection: "atom",
+      },
+    ],
+  };
+};
+
 describe("rendering", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -365,6 +400,26 @@ describe("rendering", () => {
     const paragraph = container.querySelector<HTMLElement>(".s9-paragraph");
     expect(paragraph?.classList.contains("s9-covered-by-widget")).toBe(false);
     expect(paragraph?.textContent).toBe("alpha beta");
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("renders inline widgets in paragraph flow while hiding their source range", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+
+    const editor = new ScribeFrame(container, {
+      content: "a 🟩 mark",
+      plugins: [inlineWidgetPlugin()],
+    });
+
+    const paragraph = container.querySelector<HTMLElement>(".s9-paragraph");
+    const widget = container.querySelector<HTMLElement>(".s9-widget-inline");
+
+    expect(widget?.textContent).toBe("■");
+    expect(widget?.tagName).toBe("SPAN");
+    expect(paragraph?.textContent).toBe("a ■ mark");
 
     editor.destroy();
     container.remove();

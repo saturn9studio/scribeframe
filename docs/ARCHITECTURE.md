@@ -148,11 +148,11 @@ minimap-style tools. Geometry is expressed in terms of explicit engine
 
 Rendering is virtualized when the scroll container has a measurable viewport.
 The renderer keeps a visible paragraph window with configurable overscan and
-uses spacer blocks to preserve total document height. Widgets are mounted only
-while their covered paragraph is in the rendered window, and the same
-renderer-owned lifecycle destroys offscreen widget hosts. If the focused widget
-virtualizes out, focus returns to the editor input proxy because the focused
-widget DOM is no longer live.
+uses spacer blocks to preserve total document height. Block and inline widgets
+are mounted only while their covered paragraph is in the rendered window, and
+the same renderer-owned lifecycle destroys offscreen widget hosts. If the
+focused widget virtualizes out, focus returns to the editor input proxy because
+the focused widget DOM is no longer live.
 
 Performance-sensitive editor paths avoid deriving whole-document text from the
 paragraph model during ordinary operation. `ScribeFrame` keeps a cached display
@@ -162,7 +162,9 @@ edits do not call serialization helpers. The renderer builds a per-render
 paragraph index for block decorations, range decorations, and block widgets, so
 visible paragraph output and selection painting are bounded by the rendered
 window and selected span instead of repeatedly scanning every decoration or
-widget in the document.
+widget in the document. Inline widgets render inside paragraph text and replace
+their covered source range; block widgets contribute their measured height to
+virtual scroll geometry.
 
 The editor root owns the accessible textbox semantics for the whole surface:
 `role="textbox"`, `aria-multiline="true"`, configurable `aria-label`,
