@@ -161,6 +161,8 @@ editor.dispatch(transaction);
 `Transaction` exposes `steps`, `displayChanges`, `docBefore`, `docAfter`,
 `selectionBefore`, `selectionAfter`, and `meta`. `applyStep(doc, step)` is
 available for integrations that need to apply a single `Step` outside an editor.
+`ScribeFrame.dispatch()` throws `StaleTransactionError` if a transaction was
+built from a document snapshot that is no longer current.
 
 ## Commands and keymaps
 
