@@ -772,6 +772,12 @@ export class Renderer {
       this.paragraphTop(index, range.to.paragraph) +
       this.paragraphLayoutHeight(index, range.to.paragraph);
     this.revealVerticalRange(top, bottom, options);
+    if (range.from.paragraph === range.to.paragraph) {
+      const measuredRange = this.measuredSelectionVerticalRange(range.from, range.to);
+      if (measuredRange) {
+        this.revealVerticalRange(measuredRange.top, measuredRange.bottom, options);
+      }
+    }
   }
 
   positionVerticallyFrom(
@@ -1022,6 +1028,22 @@ export class Renderer {
             : this.nearestScrollTop(top, bottom, viewportTop, viewportBottom, padding);
 
     this.setScrollTop(target);
+  }
+
+  private measuredSelectionVerticalRange(
+    from: Position,
+    to: Position,
+  ): { readonly top: number; readonly bottom: number } | null {
+    const fromRect = this.measureTextPosition(from);
+    const toRect = this.measureTextPosition(to);
+    if (!fromRect || !toRect) return null;
+
+    const viewportRect = this.scrollContainer.getBoundingClientRect();
+    const scrollTop = this.scrollContainer.scrollTop;
+    return {
+      top: Math.min(fromRect.top, toRect.top) - viewportRect.top + scrollTop,
+      bottom: Math.max(fromRect.bottom, toRect.bottom) - viewportRect.top + scrollTop,
+    };
   }
 
   private nearestScrollTop(
