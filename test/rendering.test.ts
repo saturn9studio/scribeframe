@@ -281,10 +281,44 @@ describe("rendering", () => {
     }
   });
 
+  it("normalizes text caret height to the paragraph line box", () => {
+    const originalRangeRect = Range.prototype.getBoundingClientRect;
+    Range.prototype.getBoundingClientRect = () => rect(50, 6, 0, 18);
+    const container = document.createElement("div");
+    const style = document.createElement("style");
+    style.textContent = ".s9-paragraph { line-height: 30px; }";
+    document.head.append(style);
+    document.body.append(container);
+    const editor = new ScribeFrame(container, {
+      content: "alpha",
+    });
+
+    try {
+      editor.selectRange({
+        from: { paragraph: 0, offset: 1 },
+        to: { paragraph: 0, offset: 1 },
+      });
+
+      const caret = container.querySelector<HTMLElement>(".s9-caret");
+      expect(caret?.style.top).toBe("0px");
+      expect(caret?.style.height).toBe("30px");
+    } finally {
+      if (originalRangeRect) {
+        Range.prototype.getBoundingClientRect = originalRangeRect;
+      } else {
+        delete (Range.prototype as Partial<Range>).getBoundingClientRect;
+      }
+      editor.destroy();
+      container.remove();
+      style.remove();
+    }
+  });
+
   it("positions the caret at the text indent for empty paragraphs", () => {
     const container = document.createElement("div");
     const style = document.createElement("style");
-    style.textContent = ".s9-paragraph-empty { text-indent: 24px; }";
+    style.textContent =
+      ".s9-paragraph-empty { line-height: 24px; min-height: 32px; text-indent: 24px; }";
     document.head.append(style);
     document.body.append(container);
     const editor = new ScribeFrame(container, {
@@ -312,7 +346,7 @@ describe("rendering", () => {
       const caret = container.querySelector<HTMLElement>(".s9-caret");
       expect(caret?.style.left).toBe("34px");
       expect(caret?.style.top).toBe("20px");
-      expect(caret?.style.height).toBe("18px");
+      expect(caret?.style.height).toBe("24px");
     } finally {
       elementRect.mockRestore();
       editor.destroy();

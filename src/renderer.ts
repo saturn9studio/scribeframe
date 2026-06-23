@@ -49,6 +49,11 @@ interface SelectionRect {
   readonly widgetKey?: WidgetKey;
 }
 
+interface ParagraphPositionFallback {
+  readonly element: HTMLElement;
+  readonly rect: DOMRect;
+}
+
 type InlineDecoration = Extract<EditorDecoration, { kind: "inline" }>;
 type BlockDecoration = Extract<EditorDecoration, { kind: "block" }>;
 type RangeDecoration = Extract<EditorDecoration, { from: number; to: number }>;
@@ -107,6 +112,22 @@ const rectWithHorizontalPosition = (
   height: rect.height,
   x: left,
   y: rect.top,
+  toJSON: () => ({}),
+}) as DOMRect;
+
+const rectWithVerticalPosition = (
+  rect: DOMRect,
+  top: number,
+  height: number,
+): DOMRect => ({
+  left: rect.left,
+  right: rect.right,
+  top,
+  bottom: top + height,
+  width: rect.width,
+  height,
+  x: rect.x,
+  y: top,
   toJSON: () => ({}),
 }) as DOMRect;
 
@@ -1514,7 +1535,7 @@ export class Renderer {
       return;
     }
 
-    const rect = this.measurePosition(input.selection.head);
+    const rect = this.measureCaretPosition(input.selection.head);
     if (!rect) {
       this.caret.classList.add("s9-caret-hidden");
       return;
@@ -1542,23 +1563,60 @@ export class Renderer {
     if (!input) return null;
 
     const clamped = clampPosition(input.doc, position);
+    const textRect = this.measureTextPosition(clamped);
+    if (textRect) return textRect;
+
+    const fallback = this.measureParagraphPositionFallback(clamped.paragraph);
+    if (fallback) return fallback.rect;
+
+    return this.currentWindow.virtualized
+      ? this.virtualParagraphRect(clamped.paragraph)
+      : null;
+  }
+
+  private measureCaretPosition(position: Position): DOMRect | null {
+    const input = this.currentInput;
+    if (!input) return null;
+
+    const clamped = clampPosition(input.doc, position);
+    const paragraphElement = this.paragraphElement(clamped.paragraph);
+    const textRect = this.measureTextPosition(clamped);
+    if (textRect && paragraphElement) {
+      return this.normalizeCaretRect(textRect, paragraphElement);
+    }
+    if (textRect) return textRect;
+
+    const fallback = this.measureParagraphPositionFallback(clamped.paragraph);
+    if (fallback) {
+      return this.normalizeEmptyParagraphCaretRect(
+        fallback.rect,
+        fallback.element,
+      );
+    }
+
+    return this.currentWindow.virtualized
+      ? this.virtualParagraphRect(clamped.paragraph)
+      : null;
+  }
+
+  private measureTextPosition(position: Position): DOMRect | null {
     const segment = this.segments.find(
       (item) =>
-        item.paragraph === clamped.paragraph &&
-        item.from <= clamped.offset &&
-        clamped.offset < item.to,
+        item.paragraph === position.paragraph &&
+        item.from <= position.offset &&
+        position.offset < item.to,
     ) ?? this.segments.find(
       (item) =>
-        item.paragraph === clamped.paragraph &&
-        item.from < clamped.offset &&
-        clamped.offset <= item.to,
+        item.paragraph === position.paragraph &&
+        item.from < position.offset &&
+        position.offset <= item.to,
     );
 
     if (segment) {
       const range = document.createRange();
       const offset = Math.min(
         segment.node.length,
-        Math.max(0, clamped.offset - segment.from),
+        Math.max(0, position.offset - segment.from),
       );
       range.setStart(segment.node, offset);
       range.setEnd(segment.node, offset);
@@ -1570,22 +1628,52 @@ export class Renderer {
       if (rect && (rect.width !== 0 || rect.height !== 0)) return rect;
     }
 
-    const paragraphElement = this.surface.querySelector<HTMLElement>(
-      `[data-paragraph="${clamped.paragraph}"]`,
-    );
-    if (paragraphElement) {
-      const rect = paragraphElement.getBoundingClientRect();
-      const textIndent = textIndentPx(paragraphElement, rect);
-      const direction = getComputedStyle(paragraphElement).direction;
-      const left = direction === "rtl"
-        ? rect.right - textIndent
-        : rect.left + textIndent;
-      return rectWithHorizontalPosition(rect, left);
-    }
+    return null;
+  }
 
-    return this.currentWindow.virtualized
-      ? this.virtualParagraphRect(clamped.paragraph)
-      : null;
+  private measureParagraphPositionFallback(
+    paragraphIndex: number,
+  ): ParagraphPositionFallback | null {
+    const element = this.paragraphElement(paragraphIndex);
+    if (!element) return null;
+
+    const rect = element.getBoundingClientRect();
+    const textIndent = textIndentPx(element, rect);
+    const direction = getComputedStyle(element).direction;
+    const left = direction === "rtl"
+      ? rect.right - textIndent
+      : rect.left + textIndent;
+
+    return {
+      element,
+      rect: rectWithHorizontalPosition(rect, left),
+    };
+  }
+
+  private normalizeCaretRect(rect: DOMRect, paragraphElement: HTMLElement): DOMRect {
+    const lineHeight = this.paragraphLineHeight(paragraphElement);
+    if (!lineHeight) return rect;
+
+    return rectWithVerticalPosition(
+      rect,
+      rect.top + (rect.height - lineHeight) / 2,
+      lineHeight,
+    );
+  }
+
+  private normalizeEmptyParagraphCaretRect(
+    rect: DOMRect,
+    paragraphElement: HTMLElement,
+  ): DOMRect {
+    const lineHeight = this.paragraphLineHeight(paragraphElement);
+    return lineHeight ? rectWithVerticalPosition(rect, rect.top, lineHeight) : rect;
+  }
+
+  private paragraphLineHeight(paragraphElement: HTMLElement): number | null {
+    const lineHeight = Number.parseFloat(
+      getComputedStyle(paragraphElement).lineHeight,
+    );
+    return Number.isFinite(lineHeight) && lineHeight > 0 ? lineHeight : null;
   }
 
   private virtualParagraphRect(paragraphIndex: number): DOMRect {

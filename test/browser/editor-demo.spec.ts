@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 const pasteShortcut = process.platform === "darwin" ? "Meta+V" : "Control+V";
+const selectAllShortcut = process.platform === "darwin" ? "Meta+A" : "Control+A";
 
 const documentOutput = "[data-role='document-output']";
 const focusButton = "[data-action='focus']";
@@ -89,6 +90,26 @@ test("caret is hidden when editor focus leaves", async ({ page }) => {
     button.focus();
   });
   await expect(caret).toBeHidden();
+});
+
+test("empty and typed paragraphs keep matching caret geometry", async ({ page }) => {
+  await page.locator(focusButton).click();
+  await page.keyboard.press(selectAllShortcut);
+  await page.keyboard.press("Backspace");
+  await expect(page.locator(documentOutput)).toHaveText("");
+
+  const emptyCaret = await page.locator(".s9-caret").boundingBox();
+  expect(emptyCaret).not.toBeNull();
+
+  await page.keyboard.type("A");
+  await expect(page.locator(documentOutput)).toHaveText("A");
+
+  const typedCaret = await page.locator(".s9-caret").boundingBox();
+  expect(typedCaret).not.toBeNull();
+  if (!emptyCaret || !typedCaret) return;
+
+  expect(Math.abs(emptyCaret.height - typedCaret.height)).toBeLessThan(1);
+  expect(Math.abs(emptyCaret.y - typedCaret.y)).toBeLessThan(1);
 });
 
 test("code block widget edits update document text", async ({ page }) => {
