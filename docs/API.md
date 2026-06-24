@@ -82,10 +82,15 @@ const editor = new ScribeFrame(hostElement, {
 
 ### Scrolling and virtualization options
 
-`EditorRevealOptions` accepts `block?: "nearest" | "start" | "center" | "end"`
-and `padding?: number`. `EditorVirtualizationOptions` accepts
-`enabled?: boolean`, `overscan?: number`, and `estimateParagraphHeight?: number`.
-Set `virtualization: false` to disable paragraph virtualization.
+`EditorRevealOptions` accepts `block?: "nearest" | "start" | "center" | "end"`,
+`intent?: "caret" | "selection" | "navigation"`, and `padding?: number`.
+`block` is an exact placement override. Without `block`, `caret` and `selection`
+intents use minimal nearest scrolling, while `navigation` keeps already
+comfortable ranges stable and centers offscreen or edge-near ranges for context.
+
+`EditorVirtualizationOptions` accepts `enabled?: boolean`, `overscan?: number`,
+and `estimateParagraphHeight?: number`. Set `virtualization: false` to disable
+paragraph virtualization.
 
 ## Document model
 

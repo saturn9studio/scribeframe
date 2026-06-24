@@ -340,6 +340,64 @@ describe("renderer virtualization and scrolling", () => {
     container.remove();
   });
 
+  it("keeps comfortable selections stable during comfort reveal", () => {
+    const container = document.createElement("div");
+    setViewport(container, 100);
+    document.body.append(container);
+
+    const editor = new ScribeFrame(container, {
+      content: lines(30),
+      syntaxProvider: markdownSyntaxProvider,
+      plugins: [markdownPlugin()],
+      virtualization: { estimateParagraphHeight: 20, overscan: 0 },
+    });
+
+    container.scrollTop = 100;
+    container.dispatchEvent(new Event("scroll"));
+
+    editor.selectRange(
+      {
+        from: { paragraph: 7, offset: 0 },
+        to: { paragraph: 7, offset: 4 },
+      },
+      { reveal: true, intent: "navigation" },
+    );
+
+    expect(container.scrollTop).toBe(100);
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("centers edge-near selections during comfort reveal", () => {
+    const container = document.createElement("div");
+    setViewport(container, 100);
+    document.body.append(container);
+
+    const editor = new ScribeFrame(container, {
+      content: lines(30),
+      syntaxProvider: markdownSyntaxProvider,
+      plugins: [markdownPlugin()],
+      virtualization: { estimateParagraphHeight: 20, overscan: 0 },
+    });
+
+    container.scrollTop = 100;
+    container.dispatchEvent(new Event("scroll"));
+
+    editor.selectRange(
+      {
+        from: { paragraph: 9, offset: 0 },
+        to: { paragraph: 9, offset: 4 },
+      },
+      { reveal: true, intent: "navigation" },
+    );
+
+    expect(container.scrollTop).toBe(140);
+
+    editor.destroy();
+    container.remove();
+  });
+
   it("refines offscreen same-paragraph selection reveals after rendering", () => {
     const originalRangeRect = Range.prototype.getBoundingClientRect;
     Range.prototype.getBoundingClientRect = () =>
