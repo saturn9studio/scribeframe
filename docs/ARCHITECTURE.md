@@ -106,6 +106,20 @@ interpret classes, attributes, Markdown syntax, or application policy. Adapter
 layers such as Scribe can map those generic targets to semantic actions like
 opening Markdown links.
 
+## Reveal and scroll geometry
+
+Renderer reveal is split between exact positioning and editor-intent policies.
+Exact `block` options (`nearest`, `start`, `center`, `end`) provide predictable
+low-level placement. Reveal `intent` captures higher-level editor behavior:
+caret and ordinary selection reveals preserve the viewport with nearest scrolling,
+while navigation reveals keep comfortable context by leaving already comfortable
+ranges stable and centering offscreen or edge-near ranges.
+
+Virtualized reveals first use document layout geometry, which includes measured
+paragraphs and block widgets. After an offscreen same-paragraph text selection is
+materialized, the renderer refines the reveal with measured text rects so
+navigation targets are fully visible without replacing widget-aware layout.
+
 ## Widget lifecycle
 
 Widgets are immutable render descriptions keyed by plugin-scoped `WidgetKey`s.

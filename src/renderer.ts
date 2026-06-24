@@ -153,6 +153,7 @@ export interface RendererVirtualizationOptions {
 
 export interface RendererRevealOptions {
   readonly block?: "nearest" | "start" | "center" | "end";
+  readonly intent?: "caret" | "selection" | "navigation";
   readonly padding?: number;
 }
 
@@ -772,6 +773,12 @@ export class Renderer {
       this.paragraphTop(index, range.to.paragraph) +
       this.paragraphLayoutHeight(index, range.to.paragraph);
     this.revealVerticalRange(top, bottom, options);
+    if (range.from.paragraph === range.to.paragraph) {
+      const measuredRange = this.measuredSelectionVerticalRange(range.from, range.to);
+      if (measuredRange) {
+        this.revealVerticalRange(measuredRange.top, measuredRange.bottom, options);
+      }
+    }
   }
 
   positionVerticallyFrom(
@@ -1011,17 +1018,72 @@ export class Renderer {
     const clientHeight = this.scrollContainer.clientHeight;
     const viewportTop = this.scrollContainer.scrollTop;
     const viewportBottom = viewportTop + clientHeight;
-    const block = options.block ?? "nearest";
-    const target =
-      block === "start"
-        ? top - padding
-        : block === "end"
-          ? bottom - clientHeight + padding
-          : block === "center"
-            ? top - (clientHeight - (bottom - top)) / 2
-            : this.nearestScrollTop(top, bottom, viewportTop, viewportBottom, padding);
+    const target = this.revealTargetScrollTop(
+      top,
+      bottom,
+      viewportTop,
+      viewportBottom,
+      padding,
+      options,
+    );
 
     this.setScrollTop(target);
+  }
+
+  private measuredSelectionVerticalRange(
+    from: Position,
+    to: Position,
+  ): { readonly top: number; readonly bottom: number } | null {
+    const fromRect = this.measureTextPosition(from);
+    const toRect = this.measureTextPosition(to);
+    if (!fromRect || !toRect) return null;
+
+    const viewportRect = this.scrollContainer.getBoundingClientRect();
+    const scrollTop = this.scrollContainer.scrollTop;
+    return {
+      top: Math.min(fromRect.top, toRect.top) - viewportRect.top + scrollTop,
+      bottom: Math.max(fromRect.bottom, toRect.bottom) - viewportRect.top + scrollTop,
+    };
+  }
+
+  private comfortScrollTop(
+    top: number,
+    bottom: number,
+    viewportTop: number,
+    viewportBottom: number,
+    padding: number,
+  ): number {
+    const viewportHeight = viewportBottom - viewportTop;
+    const comfortPadding = padding || Math.min(96, viewportHeight * 0.25);
+    if (
+      top >= viewportTop + comfortPadding &&
+      bottom <= viewportBottom - comfortPadding
+    ) {
+      return viewportTop;
+    }
+
+    return top - (viewportHeight - (bottom - top)) / 2;
+  }
+
+  private revealTargetScrollTop(
+    top: number,
+    bottom: number,
+    viewportTop: number,
+    viewportBottom: number,
+    padding: number,
+    options: RendererRevealOptions,
+  ): number {
+    const clientHeight = viewportBottom - viewportTop;
+    if (options.block === "start") return top - padding;
+    if (options.block === "end") return bottom - clientHeight + padding;
+    if (options.block === "center") return top - (clientHeight - (bottom - top)) / 2;
+    if (options.block === "nearest") {
+      return this.nearestScrollTop(top, bottom, viewportTop, viewportBottom, padding);
+    }
+
+    return options.intent === "navigation"
+      ? this.comfortScrollTop(top, bottom, viewportTop, viewportBottom, padding)
+      : this.nearestScrollTop(top, bottom, viewportTop, viewportBottom, padding);
   }
 
   private nearestScrollTop(
