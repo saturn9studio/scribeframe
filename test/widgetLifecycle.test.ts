@@ -6,6 +6,7 @@ import {
   WidgetDecoration,
   WidgetRenderer,
   createTransaction,
+  editorCommandNames,
 } from "../src";
 import {
   codeBlockWidgetPlugin,
@@ -128,6 +129,121 @@ describe("widget lifecycle", () => {
 });
 
 describe("widget focus", () => {
+  it("makes widgets with focus handles keyboard focusable", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const input = document.createElement("input");
+    const focus = vi.spyOn(input, "focus");
+    const renderer: WidgetRenderer<{ readonly label: string }> = {
+      mount(host) {
+        host.append(input);
+        return {
+          update() {},
+          focus() {
+            input.focus({ preventScroll: true });
+          },
+          destroy() {
+            host.replaceChildren();
+          },
+        };
+      },
+    };
+    const plugin: EditorPlugin<null> = {
+      id: new PluginId<null>("focusable"),
+      init: () => null,
+      apply: () => null,
+      widgets: ({ doc }): readonly WidgetDecoration[] => [
+        {
+          key: "focusable:demo",
+          placement: "block",
+          range: {
+            from: { paragraph: 0, offset: 0 },
+            to: { paragraph: 0, offset: doc.paragraphs[0]?.text.length ?? 0 },
+          },
+          props: { label: "demo" },
+          render: renderer,
+          selection: "block",
+        },
+      ],
+    };
+    const editor = new ScribeFrame(container, {
+      content: "widget",
+      plugins: [plugin],
+    });
+    const host = container.querySelector<HTMLElement>(".s9-widget");
+
+    expect(host?.tabIndex).toBe(0);
+
+    host?.focus();
+
+    expect(focus).toHaveBeenCalled();
+    expect(document.activeElement).toBe(input);
+
+    focus.mockRestore();
+    editor.destroy();
+    container.remove();
+  });
+
+  it("focuses a widget when keyboard movement enters its range", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const input = document.createElement("input");
+    const focus = vi.spyOn(input, "focus");
+    const renderer: WidgetRenderer<unknown> = {
+      mount(host) {
+        host.append(input);
+        return {
+          update() {},
+          focus() {
+            input.focus({ preventScroll: true });
+          },
+          destroy() {
+            host.replaceChildren();
+          },
+        };
+      },
+    };
+    const plugin: EditorPlugin<null> = {
+      id: new PluginId<null>("movement-focus"),
+      init: () => null,
+      apply: () => null,
+      widgets: (): readonly WidgetDecoration[] => [
+        {
+          key: "movement-focus:demo",
+          placement: "block",
+          range: {
+            from: { paragraph: 1, offset: 0 },
+            to: { paragraph: 1, offset: 6 },
+          },
+          props: {},
+          render: renderer,
+          selection: "block",
+        },
+      ],
+    };
+    const editor = new ScribeFrame(container, {
+      content: "before\nwidget\nafter",
+      plugins: [plugin],
+    });
+    editor.dispatch(
+      createTransaction(editor.getDocument(), editor.getSelection())
+        .setSelection({
+          anchor: { paragraph: 0, offset: 6 },
+          head: { paragraph: 0, offset: 6 },
+        })
+        .build(),
+    );
+
+    expect(editor.executeCommand(editorCommandNames.moveRight)).toBe(true);
+
+    expect(focus).toHaveBeenCalled();
+    expect(document.activeElement).toBe(input);
+
+    focus.mockRestore();
+    editor.destroy();
+    container.remove();
+  });
+
   it("preserves textarea focus when a focused widget dispatches source updates", () => {
     const container = document.createElement("div");
     document.body.append(container);

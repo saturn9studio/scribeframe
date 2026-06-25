@@ -292,6 +292,9 @@ const renderer: WidgetRenderer<{ readonly label: string }> = {
       update(nextProps) {
         button.textContent = nextProps.label;
       },
+      focus() {
+        button.focus({ preventScroll: true });
+      },
       destroy() {
         button.remove();
       },
@@ -314,6 +317,9 @@ const renderer: WidgetRenderer<{ readonly label: string }> = {
 
 `WidgetContext` exposes `key`, `readOnly`, `dispatch`, `replaceSelf`,
 `replaceContent`, `deleteSelf`, and `focusEditor`.
+`WidgetHandle.focus()` is optional. When present, Scribeframe makes the widget
+host keyboard focusable and calls `focus()` when users tab to the widget host or
+move the editor selection into a non-inline widget range.
 
 ## Syntax providers
 

@@ -669,9 +669,34 @@ export class Renderer {
     this.updateCaret();
   }
 
+  focusWidgetAt(position: Position): boolean {
+    const input = this.currentInput;
+    const index = this.currentIndex;
+    if (!input || !index) return false;
+
+    const offset = positionOffset(input.doc, index.paragraphStarts, position);
+    for (const [key, widget] of this.currentWidgets) {
+      if (widget.selection === "inline") continue;
+
+      const from = positionOffset(input.doc, index.paragraphStarts, widget.range.from);
+      const to = positionOffset(input.doc, index.paragraphStarts, widget.range.to);
+      const start = Math.min(from, to);
+      const end = Math.max(from, to);
+      const contains = start === end ? offset === start : offset >= start && offset < end;
+      if (!contains) continue;
+
+      return this.focusWidget(key);
+    }
+
+    return false;
+  }
+
   destroy(): void {
     this.scrollContainer.removeEventListener("scroll", this.handleScroll);
-    this.widgets.forEach((record) => record.handle.destroy());
+    this.widgets.forEach((record) => {
+      record.host.removeEventListener("focus", this.handleWidgetHostFocus);
+      record.handle.destroy();
+    });
     this.widgets.clear();
     this.currentWidgets.clear();
     this.currentIndex = null;
@@ -1118,6 +1143,7 @@ export class Renderer {
     );
     host.className = `s9-widget s9-widget-${widget.placement}`;
     host.dataset.widgetKey = widget.key;
+    host.addEventListener("focus", this.handleWidgetHostFocus);
     const context = this.createWidgetContext(widget.key);
     const handle = widget.render.mount(host, widget.props, context);
     this.widgets.set(widget.key, { host, handle });
@@ -1157,6 +1183,29 @@ export class Renderer {
   ): void {
     record.handle.update(widget.props);
     record.host.dataset.widgetKey = widget.key;
+    if (record.handle.focus) {
+      record.host.tabIndex = 0;
+    } else {
+      record.host.removeAttribute("tabindex");
+    }
+  }
+
+  private readonly handleWidgetHostFocus = (event: Event): void => {
+    if (!(event.currentTarget instanceof HTMLElement)) return;
+    if (event.target !== event.currentTarget) return;
+
+    const key = event.currentTarget.dataset.widgetKey as WidgetKey | undefined;
+    if (!key) return;
+
+    this.focusWidget(key);
+  };
+
+  private focusWidget(key: WidgetKey): boolean {
+    const record = this.widgets.get(key);
+    if (!record?.handle.focus) return false;
+
+    const result = record.handle.focus();
+    return result !== false;
   }
 
   private createWidgetContext(key: WidgetKey): WidgetContext {
@@ -1437,6 +1486,7 @@ export class Renderer {
     this.widgets.forEach((record, key) => {
       if (liveKeys.has(key)) return;
       record.handle.destroy();
+      record.host.removeEventListener("focus", this.handleWidgetHostFocus);
       record.host.remove();
       this.widgets.delete(key);
     });

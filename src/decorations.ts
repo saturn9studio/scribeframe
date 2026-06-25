@@ -37,6 +37,7 @@ export interface WidgetContext {
 
 export interface WidgetHandle<TProps = unknown> {
   update(props: TProps): void;
+  focus?(): boolean | void;
   destroy(): void;
 }
 
