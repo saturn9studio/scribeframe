@@ -235,6 +235,9 @@ class CodeBlockWidgetRenderer
           textarea.value = nextProps.content;
         }
       },
+      focus() {
+        textarea.focus({ preventScroll: true });
+      },
       destroy() {
         host.replaceChildren();
       },

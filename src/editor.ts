@@ -1027,6 +1027,9 @@ export class ScribeFrame {
         )
         .build(),
     );
+    if (!extend) {
+      this.renderer.focusWidgetAt(position);
+    }
   }
 
   private handleInput(): void {

@@ -126,6 +126,10 @@ Widgets are immutable render descriptions keyed by plugin-scoped `WidgetKey`s.
 The renderer owns host elements and calls `mount`, `update`, and `destroy`.
 Consumers should not keep global DOM registries or query the document to recover
 existing widget roots.
+Widget handles may expose `focus()` to receive keyboard focus when users tab to
+the widget host or move the editor selection into a non-inline widget range. The
+core only routes focus; widget renderers decide which internal control receives
+it.
 
 ## Plugin lifecycle
 
