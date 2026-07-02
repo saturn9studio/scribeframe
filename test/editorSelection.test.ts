@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  EditorPlugin,
+  PluginId,
   ScribeFrame,
+  WidgetDecoration,
+  WidgetRenderer,
   createTransaction,
 } from "../src";
 import { markdownPlugin, markdownSyntaxProvider } from "../demo/src/markdown";
@@ -86,6 +90,39 @@ const textNodeContaining = (container: HTMLElement, text: string): Text => {
   throw new Error(`Text node not found: ${text}`);
 };
 
+const nonFocusableBlockWidgetPlugin = (): EditorPlugin<null> => {
+  const renderer: WidgetRenderer = {
+    mount(host) {
+      host.textContent = "widget";
+      return {
+        update() {},
+        destroy() {
+          host.replaceChildren();
+        },
+      };
+    },
+  };
+
+  return {
+    id: new PluginId<null>("non-focusable-block-widget"),
+    init: () => null,
+    apply: () => null,
+    widgets: (): readonly WidgetDecoration[] => [
+      {
+        key: "non-focusable-block-widget:demo",
+        placement: "block",
+        range: {
+          from: { paragraph: 1, offset: 0 },
+          to: { paragraph: 1, offset: "widget".length },
+        },
+        props: {},
+        render: renderer,
+        selection: "block",
+      },
+    ],
+  };
+};
+
 describe("editor cursor and selection behavior", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -118,6 +155,33 @@ describe("editor cursor and selection behavior", () => {
     expect(editor.getSelection()).toEqual({
       anchor: { paragraph: 1, offset: 2 },
       head: { paragraph: 1, offset: 2 },
+    });
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("skips non-focusable block widget source during vertical movement", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ScribeFrame(container, {
+      content: "before\nwidget\nafter",
+      plugins: [nonFocusableBlockWidgetPlugin()],
+    });
+
+    setSelection(editor, { paragraph: 0, offset: 6 }, { paragraph: 0, offset: 6 });
+    keyDown(container, "ArrowDown");
+
+    expect(editor.getSelection()).toEqual({
+      anchor: { paragraph: 2, offset: 0 },
+      head: { paragraph: 2, offset: 0 },
+    });
+
+    keyDown(container, "ArrowUp");
+
+    expect(editor.getSelection()).toEqual({
+      anchor: { paragraph: 0, offset: 6 },
+      head: { paragraph: 0, offset: 6 },
     });
 
     editor.destroy();
