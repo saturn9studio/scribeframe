@@ -99,6 +99,18 @@ interface VirtualWindow {
   readonly virtualized: boolean;
 }
 
+type ViewportAnchor =
+  | {
+      readonly kind: "widget";
+      readonly key: WidgetKey;
+      readonly offsetTop: number;
+    }
+  | {
+      readonly kind: "paragraph";
+      readonly paragraph: number;
+      readonly offsetTop: number;
+    };
+
 const rectWithHorizontalPosition = (
   rect: DOMRect,
   left: number,
@@ -529,6 +541,7 @@ export class Renderer {
 
   render(input: RendererInput): void {
     const focusSnapshot = this.captureWidgetFocus(input.widgets);
+    const viewportAnchor = this.captureViewportAnchor();
     const index = buildRenderIndex(input);
     this.currentInput = input;
     this.currentWidgets = new Map(input.widgets.map((widget) => [widget.key, widget]));
@@ -664,6 +677,7 @@ export class Renderer {
     this.surface = nextSurface;
     this.currentWindow = window;
     this.measureRenderedHeights(index);
+    this.restoreViewportAnchor(viewportAnchor);
     this.restoreWidgetFocus(focusSnapshot);
     this.updateSelectionOverlay(input);
     this.updateCaret();
@@ -820,19 +834,148 @@ export class Renderer {
     const x = preferredX ?? rect?.left ?? 0;
     if (rect) {
       const yStep = this.verticalLineStep(position, rect);
+      const targetY = rect.top + rect.height / 2 + direction * yStep;
       const target = this.positionAtPoint(
         x,
-        rect.top + rect.height / 2 + direction * yStep,
+        targetY,
       );
-      if (target && !isSamePosition(target, position)) {
-        return { position: target, preferredX: x };
+      const visibleTarget = this.visibleVerticalTarget(
+        input.doc,
+        position,
+        target,
+        targetY,
+        direction,
+      );
+      if (visibleTarget && !isSamePosition(visibleTarget, position)) {
+        return {
+          position: visibleTarget,
+          preferredX: x,
+        };
       }
     }
 
     return {
-      position: this.fallbackVerticalPosition(input.doc, position, direction),
+      position: this.visibleVerticalPosition(
+        this.fallbackVerticalPosition(input.doc, position, direction),
+        direction,
+      ),
       preferredX: x,
     };
+  }
+
+  private visibleVerticalTarget(
+    doc: EditorDocument,
+    position: Position,
+    target: Position | null,
+    targetY: number,
+    direction: -1 | 1,
+  ): Position | null {
+    if (!target || isSamePosition(target, position)) return null;
+
+    const candidate = this.verticalHitTestCrossedPastCurrentParagraph(
+      position,
+      target,
+      targetY,
+      direction,
+    )
+      ? this.fallbackVerticalPosition(doc, position, direction)
+      : target;
+
+    return this.visibleVerticalPosition(candidate, direction);
+  }
+
+  private verticalHitTestCrossedPastCurrentParagraph(
+    position: Position,
+    target: Position,
+    targetY: number,
+    direction: -1 | 1,
+  ): boolean {
+    if (
+      this.verticalTargetMovesOppositeDirection(position, target, direction)
+    ) {
+      return true;
+    }
+
+    return this.verticalTargetStaysOnParagraphOutsideBounds(
+      position,
+      target,
+      targetY,
+      direction,
+    );
+  }
+
+  private verticalTargetMovesOppositeDirection(
+    position: Position,
+    target: Position,
+    direction: -1 | 1,
+  ): boolean {
+    if (direction > 0) {
+      return target.paragraph < position.paragraph ||
+        (target.paragraph === position.paragraph && target.offset < position.offset);
+    }
+
+    return target.paragraph > position.paragraph ||
+      (target.paragraph === position.paragraph && target.offset > position.offset);
+  }
+
+  private verticalTargetStaysOnParagraphOutsideBounds(
+    position: Position,
+    target: Position,
+    targetY: number,
+    direction: -1 | 1,
+  ): boolean {
+    if (target.paragraph !== position.paragraph) return false;
+
+    const paragraphElement = this.paragraphElement(position.paragraph);
+    if (!paragraphElement) return false;
+
+    const rect = paragraphElement.getBoundingClientRect();
+    return direction > 0 ? targetY > rect.bottom : targetY < rect.top;
+  }
+
+  private visibleVerticalPosition(
+    position: Position,
+    direction: -1 | 1,
+  ): Position {
+    const input = this.currentInput;
+    const index = this.currentIndex;
+    if (!input || !index) return position;
+
+    const widget = this.nonFocusableBlockWidgetAtPosition(input, index, position);
+    if (!widget) return position;
+
+    const paragraph = direction > 0
+      ? widget.range.to.paragraph + 1
+      : widget.range.from.paragraph - 1;
+    if (paragraph < 0 || paragraph >= input.doc.paragraphs.length) {
+      return position;
+    }
+
+    return {
+      paragraph,
+      offset: direction > 0 ? 0 : input.doc.paragraphs[paragraph].text.length,
+    };
+  }
+
+  private nonFocusableBlockWidgetAtPosition(
+    input: RendererInput,
+    index: RenderIndex,
+    position: Position,
+  ): WidgetDecoration | null {
+    const offset = positionOffset(input.doc, index.paragraphStarts, position);
+    for (const widget of this.currentWidgets.values()) {
+      if (widget.placement !== "block" || widget.selection === "inline") continue;
+      if (this.widgets.get(widget.key)?.handle.focus) continue;
+
+      const from = positionOffset(input.doc, index.paragraphStarts, widget.range.from);
+      const to = positionOffset(input.doc, index.paragraphStarts, widget.range.to);
+      const start = Math.min(from, to);
+      const end = Math.max(from, to);
+      const contains = start === end ? offset === start : offset >= start && offset <= end;
+      if (contains) return widget;
+    }
+
+    return null;
   }
 
   positionAtLineBoundaryFrom(
@@ -1256,6 +1399,88 @@ export class Renderer {
       },
       focusEditor: (position) => this.actions.focusEditor(position),
     };
+  }
+
+  private captureViewportAnchor(): ViewportAnchor | null {
+    const focusedWidget = this.focusedWidgetHost();
+    if (focusedWidget && this.elementIntersectsViewport(focusedWidget)) {
+      return {
+        kind: "widget",
+        key: focusedWidget.dataset.widgetKey as WidgetKey,
+        offsetTop: this.viewportOffsetTop(focusedWidget),
+      };
+    }
+
+    const candidates = [
+      ...this.surface.querySelectorAll<HTMLElement>(
+        ".s9-widget-block[data-widget-key], .s9-paragraph[data-paragraph]",
+      ),
+    ];
+    for (const candidate of candidates) {
+      if (!this.elementIntersectsViewport(candidate)) continue;
+
+      if (candidate.classList.contains("s9-widget-block")) {
+        const key = candidate.dataset.widgetKey as WidgetKey | undefined;
+        if (!key) continue;
+        return {
+          kind: "widget",
+          key,
+          offsetTop: this.viewportOffsetTop(candidate),
+        };
+      }
+
+      const paragraph = Number(candidate.dataset.paragraph);
+      if (!Number.isFinite(paragraph)) continue;
+      return {
+        kind: "paragraph",
+        paragraph,
+        offsetTop: this.viewportOffsetTop(candidate),
+      };
+    }
+
+    return null;
+  }
+
+  private restoreViewportAnchor(anchor: ViewportAnchor | null): void {
+    if (!anchor) return;
+
+    const element = anchor.kind === "widget"
+      ? this.widgetHostByKey(anchor.key)
+      : this.paragraphElement(anchor.paragraph);
+    if (!element) return;
+
+    const delta = this.viewportOffsetTop(element) - anchor.offsetTop;
+    if (delta === 0) return;
+
+    this.scrollContainer.scrollTop += delta;
+  }
+
+  private focusedWidgetHost(): HTMLElement | null {
+    const element = this.root.ownerDocument.activeElement;
+    if (!(element instanceof HTMLElement)) return null;
+
+    const host = element.closest<HTMLElement>(".s9-widget[data-widget-key]");
+    return host && this.root.contains(host) ? host : null;
+  }
+
+  private widgetHostByKey(key: WidgetKey): HTMLElement | null {
+    for (const host of this.surface.querySelectorAll<HTMLElement>(
+      ".s9-widget[data-widget-key]",
+    )) {
+      if (host.dataset.widgetKey === key) return host;
+    }
+    return null;
+  }
+
+  private viewportOffsetTop(element: HTMLElement): number {
+    const viewportRect = this.scrollContainer.getBoundingClientRect();
+    return element.getBoundingClientRect().top - viewportRect.top;
+  }
+
+  private elementIntersectsViewport(element: HTMLElement): boolean {
+    const rect = element.getBoundingClientRect();
+    const viewportRect = this.scrollContainer.getBoundingClientRect();
+    return rect.bottom >= viewportRect.top && rect.top <= viewportRect.bottom;
   }
 
   private captureWidgetFocus(

@@ -119,6 +119,11 @@ Virtualized reveals first use document layout geometry, which includes measured
 paragraphs and block widgets. After an offscreen same-paragraph text selection is
 materialized, the renderer refines the reveal with measured text rects so
 navigation targets are fully visible without replacing widget-aware layout.
+Ordinary renders preserve a visible viewport anchor across DOM replacement and
+height remeasurement, preferring a focused widget when one owns focus and
+otherwise using the first visible widget or paragraph. Explicit reveal APIs are
+the only renderer paths that should intentionally move an already-visible
+selection.
 
 ## Widget lifecycle
 
@@ -130,6 +135,11 @@ Widget handles may expose `focus()` to receive keyboard focus when users tab to
 the widget host or move the editor selection into a non-inline widget range. The
 core only routes focus; widget renderers decide which internal control receives
 it.
+
+Non-focusable block widgets remain editor-owned rendered content rather than tab
+stops. Vertical caret navigation resolves to visible text positions and skips
+collapsed caret targets inside their hidden source ranges; focusable block
+widgets keep receiving focus through their `focus()` handle.
 
 ## Plugin lifecycle
 
