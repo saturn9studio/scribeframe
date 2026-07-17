@@ -285,7 +285,9 @@ const renderer: WidgetRenderer<{ readonly label: string }> = {
   mount(host, props, context) {
     const button = document.createElement("button");
     button.textContent = props.label;
-    button.addEventListener("click", () => context.replaceSelf("clicked"));
+    button.addEventListener("click", () =>
+      context.replaceSelf("clicked", { history: "boundary" })
+    );
     host.append(button);
 
     return {
@@ -316,7 +318,9 @@ const renderer: WidgetRenderer<{ readonly label: string }> = {
 | `selection` | `"inline"`, `"atom"`, or `"block"` selection behavior. |
 
 `WidgetContext` exposes `key`, `readOnly`, `dispatch`, `replaceSelf`,
-`replaceContent`, `deleteSelf`, and `focusEditor`.
+`replaceContent`, `deleteSelf`, and `focusEditor`. `replaceSelf` and
+`replaceContent` merge repeated edits from the same widget by default; pass
+`{ history: "boundary" }` for a structural edit that should undo separately.
 `WidgetHandle.focus()` is optional. When present, Scribeframe makes the widget
 host keyboard focusable and calls `focus()` when users tab to the widget host or
 move the editor selection into a non-inline widget range.

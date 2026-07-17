@@ -101,6 +101,44 @@ const editWidgetText = (container: HTMLElement, text: string): void => {
   input.dispatchEvent(new Event("input", { bubbles: true }));
 };
 
+const boundaryWidgetPlugin = (): EditorPlugin<null> => {
+  const renderer: WidgetRenderer<{ readonly text: string }> = {
+    mount(host, props, context) {
+      const input = document.createElement("textarea");
+      input.className = "boundary-widget-input";
+      input.value = props.text;
+      input.addEventListener("change", () => {
+        context.replaceSelf(input.value, { history: "boundary" });
+      });
+      host.replaceChildren(input);
+      return {
+        update(nextProps) {
+          if (document.activeElement !== input) input.value = nextProps.text;
+        },
+        destroy() {
+          host.replaceChildren();
+        },
+      };
+    },
+  };
+  return {
+    id: new PluginId<null>("boundary-widget"),
+    init: () => null,
+    apply: () => null,
+    widgets: ({ doc }): readonly WidgetDecoration[] => [{
+      key: "boundary-widget:editor",
+      placement: "block",
+      range: {
+        from: { paragraph: 0, offset: 0 },
+        to: { paragraph: 0, offset: doc.paragraphs[0]?.text.length ?? 0 },
+      },
+      props: { text: doc.paragraphs[0]?.text ?? "" },
+      render: renderer,
+      selection: "block",
+    }],
+  };
+};
+
 describe("editor history", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -349,6 +387,33 @@ describe("editor history", () => {
 
     editor.redo();
     expect(editor.getContent()).toBe("widget edited");
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("keeps explicit widget boundaries out of mergeable widget batches", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ScribeFrame(container, {
+      content: "one",
+      plugins: [boundaryWidgetPlugin()],
+    });
+    const input = container.querySelector<HTMLTextAreaElement>(
+      ".boundary-widget-input",
+    );
+    expect(input).not.toBeNull();
+    if (!input) return;
+
+    input.value = "two";
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    input.value = "three";
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+
+    editor.undo();
+    expect(editor.getContent()).toBe("two");
+    editor.undo();
+    expect(editor.getContent()).toBe("one");
 
     editor.destroy();
     container.remove();

@@ -1367,26 +1367,26 @@ export class Renderer {
         return renderer.currentInput?.readOnly ?? false;
       },
       dispatch: (transaction) => this.actions.dispatch(transaction),
-      replaceSelf: (text) => {
+      replaceSelf: (text, options) => {
         const widget = lookup();
         const input = this.requireInput();
-        this.actions.dispatch(
-          createTransaction(input.doc, input.selection)
-            .replaceRange(widget.range.from, widget.range.to, text)
-            .setMeta(historyEventMetaKey, widgetEditHistoryEvent(key))
-            .build(),
-        );
+        const transaction = createTransaction(input.doc, input.selection)
+          .replaceRange(widget.range.from, widget.range.to, text);
+        if (options?.history !== "boundary") {
+          transaction.setMeta(historyEventMetaKey, widgetEditHistoryEvent(key));
+        }
+        this.actions.dispatch(transaction.build());
       },
-      replaceContent: (text) => {
+      replaceContent: (text, options) => {
         const widget = lookup();
         if (!widget.contentRange) return;
         const input = this.requireInput();
-        this.actions.dispatch(
-          createTransaction(input.doc, input.selection)
-            .replaceRange(widget.contentRange.from, widget.contentRange.to, text)
-            .setMeta(historyEventMetaKey, widgetEditHistoryEvent(key))
-            .build(),
-        );
+        const transaction = createTransaction(input.doc, input.selection)
+          .replaceRange(widget.contentRange.from, widget.contentRange.to, text);
+        if (options?.history !== "boundary") {
+          transaction.setMeta(historyEventMetaKey, widgetEditHistoryEvent(key));
+        }
+        this.actions.dispatch(transaction.build());
       },
       deleteSelf: () => {
         const widget = lookup();

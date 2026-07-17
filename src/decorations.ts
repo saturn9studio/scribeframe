@@ -25,12 +25,16 @@ export type EditorDecoration =
 export type WidgetPlacement = "inline" | "block";
 export type WidgetSelectionBehavior = "inline" | "atom" | "block";
 
+export interface WidgetReplaceOptions {
+  readonly history?: "merge" | "boundary";
+}
+
 export interface WidgetContext {
   readonly key: WidgetKey;
   readonly readOnly: boolean;
   dispatch(transaction: Transaction): void;
-  replaceSelf(text: string): void;
-  replaceContent(text: string): void;
+  replaceSelf(text: string, options?: WidgetReplaceOptions): void;
+  replaceContent(text: string, options?: WidgetReplaceOptions): void;
   deleteSelf(): void;
   focusEditor(position?: Position): void;
 }
