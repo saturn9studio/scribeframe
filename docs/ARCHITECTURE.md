@@ -67,7 +67,9 @@ History entries are batched with explicit editor-origin metadata. Continuous
 typing coalesces into natural undo units, with whitespace, cursor movement, and
 timeout boundaries closing the active batch. Contiguous Backspace and Delete
 runs batch independently. Repeated edits from the same widget coalesce into a
-widget-local undo unit without merging into surrounding editor typing.
+widget-local undo unit without merging into surrounding editor typing. Widgets
+can mark structural replacements as explicit boundaries so they do not merge
+with adjacent widget typing.
 Paste-like programmatic replacements, Enter, selected range replacement, cut,
 and widget deletion are explicit boundary entries so they undo as complete user
 actions rather than merging into surrounding typing.
