@@ -136,7 +136,11 @@ existing widget roots.
 Widget handles may expose `focus()` to receive keyboard focus when users tab to
 the widget host or move the editor selection into a non-inline widget range. The
 core only routes focus; widget renderers decide which internal control receives
-it.
+it. When rendering reattaches a focused native input or textarea, the renderer
+restores its focus, selection, and internal scroll position after measuring the
+new surface. Widget handles can use `afterRender()` for layout-dependent work;
+the renderer calls it after attaching the new surface and before recording
+widget heights.
 
 Non-focusable block widgets remain editor-owned rendered content rather than tab
 stops. Vertical caret navigation resolves to visible text positions and skips

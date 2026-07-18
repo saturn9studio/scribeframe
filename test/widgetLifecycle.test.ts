@@ -16,7 +16,9 @@ import {
 interface Counts {
   mounts: number;
   updates: number;
+  afterRenders: number;
   destroys: number;
+  attachedAfterRender: boolean;
 }
 
 const lifecyclePlugin = (counts: Counts): EditorPlugin<null> => {
@@ -28,6 +30,10 @@ const lifecyclePlugin = (counts: Counts): EditorPlugin<null> => {
         update(nextProps) {
           counts.updates += 1;
           host.textContent = nextProps.label;
+        },
+        afterRender() {
+          counts.afterRenders += 1;
+          counts.attachedAfterRender &&= host.isConnected;
         },
         destroy() {
           counts.destroys += 1;
@@ -67,7 +73,13 @@ describe("widget lifecycle", () => {
   it("mounts, updates, and destroys widgets through the renderer", () => {
     const container = document.createElement("div");
     document.body.append(container);
-    const counts = { mounts: 0, updates: 0, destroys: 0 };
+    const counts = {
+      mounts: 0,
+      updates: 0,
+      afterRenders: 0,
+      destroys: 0,
+      attachedAfterRender: true,
+    };
     const editor = new ScribeFrame(container, {
       content: "widget",
       plugins: [lifecyclePlugin(counts)],
@@ -75,6 +87,8 @@ describe("widget lifecycle", () => {
 
     expect(counts.mounts).toBe(1);
     expect(counts.updates).toBe(1);
+    expect(counts.afterRenders).toBe(1);
+    expect(counts.attachedAfterRender).toBe(true);
 
     editor.dispatch(
       createTransaction(editor.getDocument(), editor.getSelection())
@@ -88,6 +102,7 @@ describe("widget lifecycle", () => {
 
     expect(counts.mounts).toBe(1);
     expect(counts.updates).toBe(2);
+    expect(counts.afterRenders).toBe(2);
 
     editor.dispatch(
       createTransaction(editor.getDocument(), editor.getSelection())
@@ -244,7 +259,7 @@ describe("widget focus", () => {
     container.remove();
   });
 
-  it("preserves textarea focus when a focused widget dispatches source updates", () => {
+  it("preserves textarea focus, selection, and scroll during source updates", () => {
     const container = document.createElement("div");
     document.body.append(container);
     const editor = new ScribeFrame(container, {
@@ -261,16 +276,30 @@ describe("widget focus", () => {
 
     textarea.focus();
     textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    textarea.scrollTop = 42;
+    textarea.scrollLeft = 7;
 
     const focus = vi.spyOn(textarea, "focus");
+    const setSelectionRange = vi.spyOn(textarea, "setSelectionRange")
+      .mockImplementation((start, end) => {
+        textarea.selectionStart = start;
+        textarea.selectionEnd = end;
+        textarea.scrollTop = 0;
+        textarea.scrollLeft = 0;
+      });
     textarea.value = `${textarea.value}\nconsole.log(x);`;
     textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    textarea.scrollTop = 42;
+    textarea.scrollLeft = 7;
     textarea.dispatchEvent(new Event("input", { bubbles: true }));
 
     expect(focus).toHaveBeenCalled();
     expect(document.activeElement).toBe(textarea);
     expect(textarea.selectionStart).toBe(textarea.value.length);
+    expect(textarea.scrollTop).toBe(42);
+    expect(textarea.scrollLeft).toBe(7);
 
+    setSelectionRange.mockRestore();
     focus.mockRestore();
     editor.destroy();
     container.remove();

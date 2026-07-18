@@ -42,6 +42,8 @@ interface WidgetFocusSnapshot {
   readonly widgetKey: WidgetKey;
   readonly selectionStart: number | null;
   readonly selectionEnd: number | null;
+  readonly scrollTop: number | null;
+  readonly scrollLeft: number | null;
 }
 
 interface SelectionRect {
@@ -676,6 +678,9 @@ export class Renderer {
     this.surface.replaceWith(nextSurface);
     this.surface = nextSurface;
     this.currentWindow = window;
+    mountedWidgetKeys.forEach((key) => {
+      this.widgets.get(key)?.handle.afterRender?.();
+    });
     this.measureRenderedHeights(index);
     this.restoreViewportAnchor(viewportAnchor);
     this.restoreWidgetFocus(focusSnapshot);
@@ -1506,6 +1511,8 @@ export class Renderer {
         widgetKey,
         selectionStart: element.selectionStart,
         selectionEnd: element.selectionEnd,
+        scrollTop: element.scrollTop,
+        scrollLeft: element.scrollLeft,
       };
     }
 
@@ -1514,6 +1521,8 @@ export class Renderer {
       widgetKey,
       selectionStart: null,
       selectionEnd: null,
+      scrollTop: null,
+      scrollLeft: null,
     };
   }
 
@@ -1530,25 +1539,33 @@ export class Renderer {
     snapshot.element.focus({ preventScroll: true });
 
     if (
-      snapshot.selectionStart === null ||
-      snapshot.selectionEnd === null ||
-      !(
+      snapshot.selectionStart !== null &&
+      snapshot.selectionEnd !== null &&
+      (
         snapshot.element instanceof HTMLInputElement ||
         snapshot.element instanceof HTMLTextAreaElement
       )
     ) {
-      return;
+      const selectionStart = Math.min(
+        snapshot.selectionStart,
+        snapshot.element.value.length,
+      );
+      const selectionEnd = Math.min(
+        snapshot.selectionEnd,
+        snapshot.element.value.length,
+      );
+      snapshot.element.setSelectionRange(selectionStart, selectionEnd);
     }
 
-    const selectionStart = Math.min(
-      snapshot.selectionStart,
-      snapshot.element.value.length,
-    );
-    const selectionEnd = Math.min(
-      snapshot.selectionEnd,
-      snapshot.element.value.length,
-    );
-    snapshot.element.setSelectionRange(selectionStart, selectionEnd);
+    // render() measures the reattached surface before restoring focus, so the
+    // control's scroll extents are current. Selection restoration must happen
+    // first because browsers may scroll a focused control to reveal its caret.
+    if (snapshot.scrollTop !== null) {
+      snapshot.element.scrollTop = snapshot.scrollTop;
+    }
+    if (snapshot.scrollLeft !== null) {
+      snapshot.element.scrollLeft = snapshot.scrollLeft;
+    }
   }
 
   private elementsAtPoint(x: number, y: number): readonly Element[] {
