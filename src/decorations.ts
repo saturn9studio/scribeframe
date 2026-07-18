@@ -41,6 +41,7 @@ export interface WidgetContext {
 
 export interface WidgetHandle<TProps = unknown> {
   update(props: TProps): void;
+  afterRender?(): void;
   focus?(): boolean | void;
   destroy(): void;
 }
