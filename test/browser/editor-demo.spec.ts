@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { resolve } from "node:path";
 
 const pasteShortcut = process.platform === "darwin" ? "Meta+V" : "Control+V";
 const selectAllShortcut = process.platform === "darwin" ? "Meta+A" : "Control+A";
@@ -121,8 +122,48 @@ test("empty and typed paragraphs keep matching caret geometry", async ({ page })
 test("caret geometry stays at adjacent text while crossing hidden inline source", async ({
   page,
 }) => {
-  await page.goto("/?fixture=hidden-inline");
-  await page.locator(focusButton).click();
+  const modulePath =
+    `/@fs/${resolve("src/index.ts").replace(/\\/gu, "/")}`;
+  await page.addScriptTag({
+    type: "module",
+    content: `
+      import { PluginId, ScribeFrame } from ${JSON.stringify(modulePath)};
+      const host = document.createElement("div");
+      const style = document.createElement("style");
+      style.textContent =
+        ".browser-test-hidden-inline { display: none; } " +
+        ".browser-test-inline-affordance::before { display: inline-block; " +
+        "width: 12px; height: 12px; margin-right: 4px; background: currentColor; " +
+        "content: ''; vertical-align: -1px; }";
+      document.head.append(style);
+      document.body.replaceChildren(host);
+      const editor = new ScribeFrame(host, {
+        content: "before METADATAafter",
+        plugins: [{
+          id: new PluginId("browser-test-hidden-inline"),
+          init: () => null,
+          apply: () => null,
+          decorations: () => [
+            {
+              kind: "inline",
+              from: 7,
+              to: 15,
+              attrs: { class: "browser-test-hidden-inline" },
+            },
+            {
+              kind: "inline",
+              from: 15,
+              to: 16,
+              attrs: { class: "browser-test-inline-affordance" },
+            },
+          ],
+        }],
+      });
+      editor.focus();
+      window.browserTestEditorReady = true;
+    `,
+  });
+  await page.waitForFunction("window.browserTestEditorReady === true");
   await page.keyboard.press("Home");
 
   const boundaries = await page.evaluate(() => {

@@ -256,16 +256,3 @@ button:disabled:hover {
     min-height: 300px;
   }
 }
-.demo-hidden-inline {
-  display: none;
-}
-
-.demo-inline-affordance-start::before {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  margin-right: 4px;
-  background: currentColor;
-  content: "";
-  vertical-align: -1px;
-}

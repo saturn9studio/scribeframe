@@ -5,14 +5,10 @@ import {
   markdownSyntaxProvider,
   requireMarkdownSyntaxSnapshot,
 } from "./markdown";
-import {
-  hiddenInlineFixtureContent,
-  hiddenInlineFixturePlugin,
-} from "./hiddenInlineFixture";
 import "@saturn9/scribeframe/styles.css";
 import "./styles.css";
 
-const defaultMarkdown = `# Scribeframe Demo
+const initialMarkdown = `# Scribeframe Demo
 
 This demo edits Markdown text directly. Try typing **bold** text, ==highlighting== something, or editing the code widget below.
 
@@ -24,11 +20,6 @@ console.log(greeting);
 The code block above is rendered by a plugin and maps edits back through a typed widget context.
 
 Undo and redo are editor-owned now. Try Cmd/Ctrl+Z, Shift+Cmd/Ctrl+Z, or the toolbar buttons.`;
-const hiddenInlineFixture =
-  new URLSearchParams(window.location.search).get("fixture") === "hidden-inline";
-const initialMarkdown = hiddenInlineFixture
-  ? hiddenInlineFixtureContent
-  : defaultMarkdown;
 
 const demo = document.querySelector<HTMLDivElement>("#demo");
 
@@ -84,9 +75,7 @@ let readOnly = false;
 const editor = new ScribeFrame(host, {
   content: initialMarkdown,
   syntaxProvider: markdownSyntaxProvider,
-  plugins: hiddenInlineFixture
-    ? [hiddenInlineFixturePlugin()]
-    : [markdownPlugin(), codeBlockWidgetPlugin()],
+  plugins: [markdownPlugin(), codeBlockWidgetPlugin()],
   onChange: () => updateDemo(),
 });
 const updateDemo = (): void => {
