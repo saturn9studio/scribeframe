@@ -32,6 +32,13 @@ interface TextSegment {
   readonly to: number;
 }
 
+interface TextBoundaryCandidate {
+  readonly segment: TextSegment;
+  readonly offset: number;
+  readonly distance: number;
+  readonly side: "preceding" | "following";
+}
+
 interface WidgetRecord<TProps = unknown> {
   readonly host: HTMLElement;
   readonly handle: WidgetHandle<TProps>;
@@ -1967,21 +1974,76 @@ export class Renderer {
     );
 
     if (segment) {
-      const range = document.createRange();
       const offset = Math.min(
         segment.node.length,
         Math.max(0, position.offset - segment.from),
       );
-      range.setStart(segment.node, offset);
-      range.setEnd(segment.node, offset);
-      const rect =
-        typeof range.getBoundingClientRect === "function"
-          ? range.getBoundingClientRect()
-          : null;
-      range.detach();
-      if (rect && (rect.width !== 0 || rect.height !== 0)) return rect;
+      const rect = this.measureTextSegmentPosition(segment, offset);
+      if (rect) return rect;
+      return this.measureNearestTextBoundary(position, segment);
     }
 
+    return null;
+  }
+
+  private measureTextSegmentPosition(
+    segment: TextSegment,
+    offset: number,
+  ): DOMRect | null {
+    const range = document.createRange();
+    range.setStart(segment.node, offset);
+    range.setEnd(segment.node, offset);
+    const rect =
+      typeof range.getBoundingClientRect === "function"
+        ? range.getBoundingClientRect()
+        : null;
+    range.detach();
+    return rect && (rect.width !== 0 || rect.height !== 0) ? rect : null;
+  }
+
+  private measureNearestTextBoundary(
+    position: Position,
+    unmeasurable: TextSegment,
+  ): DOMRect | null {
+    const candidates = this.segments
+      .filter(
+        (segment) =>
+          segment !== unmeasurable &&
+          segment.paragraph === position.paragraph,
+      )
+      .flatMap((segment): TextBoundaryCandidate[] => {
+        const boundaries: TextBoundaryCandidate[] = [];
+        if (segment.to <= position.offset) {
+          boundaries.push({
+            segment,
+            offset: segment.node.length,
+            distance: position.offset - segment.to,
+            side: "preceding",
+          });
+        }
+        if (segment.from >= position.offset) {
+          boundaries.push({
+            segment,
+            offset: 0,
+            distance: segment.from - position.offset,
+            side: "following",
+          });
+        }
+        return boundaries;
+      })
+      .sort(
+        (a, b) =>
+          a.distance - b.distance ||
+          (a.side === b.side ? 0 : a.side === "preceding" ? -1 : 1),
+      );
+
+    for (const candidate of candidates) {
+      const rect = this.measureTextSegmentPosition(
+        candidate.segment,
+        candidate.offset,
+      );
+      if (rect) return rect;
+    }
     return null;
   }
 

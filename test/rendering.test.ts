@@ -50,6 +50,26 @@ const splitDecorationPlugin = (): EditorPlugin<null> => ({
   ],
 });
 
+const hiddenDecorationPlugin = (): EditorPlugin<null> => ({
+  id: new PluginId<null>("hidden-decoration"),
+  init: () => null,
+  apply: () => null,
+  decorations: () => [
+    {
+      kind: "inline",
+      from: 5,
+      to: 6,
+      attrs: { class: "hidden-one" },
+    },
+    {
+      kind: "inline",
+      from: 6,
+      to: 7,
+      attrs: { class: "hidden-two" },
+    },
+  ],
+});
+
 const zeroLengthBlockWidgetPlugin = (): EditorPlugin<null> => {
   const renderer: WidgetRenderer = {
     mount(host) {
@@ -270,6 +290,65 @@ describe("rendering", () => {
 
       const caret = container.querySelector<HTMLElement>(".s9-caret");
       expect(caret?.style.left).toBe("52px");
+    } finally {
+      if (originalRangeRect) {
+        Range.prototype.getBoundingClientRect = originalRangeRect;
+      } else {
+        delete (Range.prototype as Partial<Range>).getBoundingClientRect;
+      }
+      editor.destroy();
+      container.remove();
+    }
+  });
+
+  it("measures hidden inline positions from the nearest visible text boundary", () => {
+    const originalRangeRect = Range.prototype.getBoundingClientRect;
+    Range.prototype.getBoundingClientRect = function () {
+      const element = this.startContainer.parentElement;
+      if (
+        element?.classList.contains("hidden-one") ||
+        element?.classList.contains("hidden-two")
+      ) {
+        return rect(0, 0, 0, 0);
+      }
+      if (
+        this.startContainer.textContent === "alpha" &&
+        this.startOffset === 5
+      ) {
+        return rect(50, 4, 0, 18);
+      }
+      if (
+        this.startContainer.textContent === " beta" &&
+        this.startOffset === 0
+      ) {
+        return rect(70, 4, 0, 18);
+      }
+      return rect(40, 4, 0, 18);
+    };
+
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ScribeFrame(container, {
+      content: "alphaXX beta",
+      plugins: [hiddenDecorationPlugin()],
+    });
+
+    try {
+      editor.selectRange({
+        from: { paragraph: 0, offset: 5 },
+        to: { paragraph: 0, offset: 5 },
+      });
+      expect(
+        container.querySelector<HTMLElement>(".s9-caret")?.style.left,
+      ).toBe("50px");
+
+      editor.selectRange({
+        from: { paragraph: 0, offset: 6 },
+        to: { paragraph: 0, offset: 6 },
+      });
+      expect(
+        container.querySelector<HTMLElement>(".s9-caret")?.style.left,
+      ).toBe("50px");
     } finally {
       if (originalRangeRect) {
         Range.prototype.getBoundingClientRect = originalRangeRect;
