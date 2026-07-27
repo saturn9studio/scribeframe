@@ -35,6 +35,12 @@ const pointForEditorText = async (
     throw new Error(`Target text not found: ${target}`);
   }, targetText);
 
+const caretX = async (page: Page): Promise<number> => {
+  const box = await page.locator(".s9-caret").boundingBox();
+  if (!box) throw new Error("Caret is not measurable");
+  return box.x;
+};
+
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
 });
@@ -110,6 +116,55 @@ test("empty and typed paragraphs keep matching caret geometry", async ({ page })
 
   expect(Math.abs(emptyCaret.height - typedCaret.height)).toBeLessThan(1);
   expect(Math.abs(emptyCaret.y - typedCaret.y)).toBeLessThan(1);
+});
+
+test("caret geometry stays at adjacent text while crossing hidden inline source", async ({
+  page,
+}) => {
+  await page.goto("/?fixture=hidden-inline");
+  await page.locator(focusButton).click();
+  await page.keyboard.press("Home");
+
+  const boundaries = await page.evaluate(() => {
+    const measure = (
+      selector: string,
+      offset: number,
+    ): number => {
+      const element = document.querySelector<HTMLElement>(selector);
+      const text = element?.firstChild;
+      if (!(text instanceof Text)) throw new Error(`Missing text for ${selector}`);
+      const range = document.createRange();
+      range.setStart(text, offset);
+      range.setEnd(text, offset);
+      return range.getBoundingClientRect().x;
+    };
+    return {
+      before: measure("[data-from='0'][data-to='7']", 7),
+      after: measure("[data-from='15'][data-to='16']", 0),
+    };
+  });
+
+  const fromLeft: number[] = [];
+  for (let offset = 1; offset <= 15; offset += 1) {
+    await page.keyboard.press("ArrowRight");
+    if (offset >= 7) fromLeft.push(await caretX(page));
+  }
+
+  const fromRight: number[] = [await caretX(page)];
+  for (let offset = 14; offset >= 7; offset -= 1) {
+    await page.keyboard.press("ArrowLeft");
+    fromRight.push(await caretX(page));
+  }
+  fromRight.reverse();
+
+  for (const positions of [fromLeft, fromRight]) {
+    expect(positions[0]).toBeCloseTo(boundaries.before, 0);
+    expect(positions[positions.length - 1]).toBeCloseTo(boundaries.after, 0);
+    positions.forEach((position) => {
+      expect(position).toBeGreaterThanOrEqual(boundaries.before - 1);
+      expect(position).toBeLessThanOrEqual(boundaries.after + 1);
+    });
+  }
 });
 
 test("code block widget edits update document text", async ({ page }) => {
