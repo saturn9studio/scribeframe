@@ -10,7 +10,7 @@
   --s9-editor-font-weight: 400;
   --s9-editor-line-height: 1.6;
   --s9-editor-paragraph-color: #241f1a;
-  --s9-editor-paragraph-min-height: 1.6em;
+  --s9-editor-paragraph-min-height: 1lh;
   --s9-editor-paragraph-spacing: 0.75em;
   --s9-editor-selection-background: rgba(139, 104, 62, 0.22);
   --s9-editor-surface-background: transparent;

@@ -32,6 +32,12 @@ describe("Scribeframe styles", () => {
     expect(paragraph).toContain("font-family: var(--s9-editor-font-family);");
     expect(paragraph).toContain("font-size: var(--s9-editor-font-size);");
     expect(paragraph).toContain("line-height: var(--s9-editor-line-height);");
+    expect(blockFor(".s9-editor-root")).toContain(
+      "--s9-editor-paragraph-min-height: 1lh;",
+    );
+    expect(paragraph).toContain(
+      "min-height: var(--s9-editor-paragraph-min-height);",
+    );
     expect(paragraph).not.toContain("font:");
     expect(caret).toContain("background: var(--s9-editor-caret-color);");
     expect(caret).toContain("width: var(--s9-editor-caret-width);");

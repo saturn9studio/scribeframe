@@ -208,6 +208,25 @@ test("caret geometry stays at adjacent text while crossing hidden inline source"
   }
 });
 
+test("paragraph minimum height follows configured line height", async ({ page }) => {
+  const metrics = await page.locator(".s9-editor-root").evaluate((root) => {
+    const element = root as HTMLElement;
+    const paragraph = element.querySelector<HTMLElement>(".s9-paragraph");
+    if (!paragraph) throw new Error("Paragraph not found");
+    paragraph.style.fontSize = "20px";
+    paragraph.style.lineHeight = "1.3";
+
+    const style = getComputedStyle(paragraph);
+    return {
+      lineHeight: Number.parseFloat(style.lineHeight),
+      minHeight: Number.parseFloat(style.minHeight),
+    };
+  });
+
+  expect(metrics.lineHeight).toBeCloseTo(26, 1);
+  expect(metrics.minHeight).toBeCloseTo(metrics.lineHeight, 1);
+});
+
 test("code block widget edits update document text", async ({ page }) => {
   const code = page.locator(".s9-code-widget-textarea");
 

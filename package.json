@@ -1,6 +1,6 @@
 {
   "name": "@saturn9/scribeframe",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "A format-agnostic text editor engine with owned rendering and widget lifecycle",
   "repository": {
     "type": "git",

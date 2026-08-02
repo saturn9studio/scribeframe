@@ -22,7 +22,8 @@ code outside the core package source, not hardcoded into the runtime.
    reconfiguration, plus pure decoration/widget output.
 7. **Renderer**: virtualized DOM output, virtual caret, selection painting,
    scrolling geometry, widget mount/update/destroy, and CSS-variable driven
-   visual defaults.
+   visual defaults. Paragraph minimum height defaults to one computed line box
+   so empty-paragraph geometry follows host-configured typography.
 8. **Input manager**: focus-proxy textarea, keyboard editing, clipboard, and
    pointer-to-position mapping.
 9. **Example integrations**: demo code can provide syntax providers, projections,
