@@ -311,7 +311,7 @@ export class ScribeFrame {
     this.textarea.value = "";
     this.ignoreNextCompositionInput = text.length > 0;
     this.committedCompositionText = text;
-    this.insertText(text, this.historyEventForInput(text));
+    this.applyTextInput(text, this.historyEventForInput(text));
   };
 
   private readonly handleTextareaPaste = (event: ClipboardEvent): void => {
@@ -831,7 +831,7 @@ export class ScribeFrame {
         return true;
       case editorCommandNames.insertLineBreak:
         if (this.readOnly) return false;
-        this.insertText("\n", { kind: "boundary" });
+        this.applyTextInput("\n", { kind: "boundary" });
         return true;
       case editorCommandNames.deleteBackward:
         if (this.readOnly) return false;
@@ -887,15 +887,15 @@ export class ScribeFrame {
     switch (inputType) {
       case "insertText":
         if (data === null) return false;
-        this.insertText(data, this.historyEventForInput(data));
+        this.applyTextInput(data, this.historyEventForInput(data));
         return true;
       case "insertFromPaste":
         if (data === null) return false;
-        this.insertText(data, { kind: "boundary" });
+        this.applyTextInput(data, { kind: "boundary" });
         return true;
       case "insertLineBreak":
       case "insertParagraph":
-        this.insertText("\n", { kind: "boundary" });
+        this.applyTextInput("\n", { kind: "boundary" });
         return true;
       case "deleteContentBackward":
         this.deleteBackward();
@@ -1053,10 +1053,14 @@ export class ScribeFrame {
 
     this.ignoreNextCompositionInput = false;
     this.committedCompositionText = "";
-    this.insertText(text, this.historyEventForInput(text));
+    this.applyTextInput(text, this.historyEventForInput(text));
   }
 
-  private insertText(text: string, event: HistoryEvent): void {
+  insertText(text: string): void {
+    this.applyTextInput(text, this.historyEventForInput(text));
+  }
+
+  private applyTextInput(text: string, event: HistoryEvent): void {
     if (this.readOnly || text.length === 0) return;
     this.preferredSelectionX = null;
     this.dispatch(
