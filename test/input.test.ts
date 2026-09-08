@@ -129,6 +129,26 @@ describe("editor input correctness", () => {
     vi.restoreAllMocks();
   });
 
+  it("supports typed programmatic insertion through the input pipeline", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const onChange = vi.fn();
+    const editor = new ScribeFrame(container, { content: "", onChange });
+
+    editor.insertText("hello");
+    editor.insertText(" world");
+
+    expect(editor.getContent()).toBe("hello world");
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ content: "hello world" }),
+    );
+    editor.undo();
+    expect(editor.getContent()).toBe("");
+
+    editor.destroy();
+    container.remove();
+  });
+
   it("commits beforeinput text data without relying on textarea value", () => {
     const container = document.createElement("div");
     document.body.append(container);

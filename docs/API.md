@@ -69,6 +69,7 @@ const editor = new ScribeFrame(hostElement, {
 | `canUndo()` / `canRedo()` | Reports whether undo/redo is available and not read-only. |
 | `undo()` / `redo()` | Restores editor-owned history snapshots. |
 | `clearHistory()` | Clears undo and redo stacks without changing content. |
+| `insertText(text)` | Replaces the current selection through the editor input/history pipeline with normal typing history semantics. |
 | `setContent(content)` | Externally replaces the whole document, resets selection and history, and notifies plugins with the previous document/selection. |
 | `setReadOnly(readOnly)` | Toggles read-only state and renderer affordances. |
 | `setPlugins(plugins)` | Reconfigures plugins at runtime, preserving state for retained `PluginId` objects. |
