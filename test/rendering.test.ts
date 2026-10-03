@@ -360,6 +360,50 @@ describe("rendering", () => {
     }
   });
 
+  it("measures inline widget positions from the nearest visible text boundary", () => {
+    const originalRangeRect = Range.prototype.getBoundingClientRect;
+    Range.prototype.getBoundingClientRect = function () {
+      if (
+        this.startContainer.textContent === "a " &&
+        this.startOffset === 2
+      ) {
+        return rect(20, 4, 0, 18);
+      }
+      if (
+        this.startContainer.textContent === " mark" &&
+        this.startOffset === 0
+      ) {
+        return rect(40, 4, 0, 18);
+      }
+      return rect(10, 4, 0, 18);
+    };
+
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ScribeFrame(container, {
+      content: "a XX mark",
+      plugins: [inlineWidgetPlugin()],
+    });
+
+    try {
+      editor.selectRange({
+        from: { paragraph: 0, offset: 3 },
+        to: { paragraph: 0, offset: 3 },
+      });
+      expect(
+        container.querySelector<HTMLElement>(".s9-caret")?.style.left,
+      ).toBe("20px");
+    } finally {
+      if (originalRangeRect) {
+        Range.prototype.getBoundingClientRect = originalRangeRect;
+      } else {
+        delete (Range.prototype as Partial<Range>).getBoundingClientRect;
+      }
+      editor.destroy();
+      container.remove();
+    }
+  });
+
   it("normalizes text caret height to the paragraph line box", () => {
     const originalRangeRect = Range.prototype.getBoundingClientRect;
     Range.prototype.getBoundingClientRect = () => rect(50, 6, 0, 18);

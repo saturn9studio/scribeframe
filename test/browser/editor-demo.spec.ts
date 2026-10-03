@@ -208,6 +208,95 @@ test("caret geometry stays at adjacent text while crossing hidden inline source"
   }
 });
 
+test("caret geometry stays at adjacent text while crossing inline widget source", async ({
+  page,
+}) => {
+  const modulePath =
+    `/@fs/${resolve("src/index.ts").replace(/\\/gu, "/")}`;
+  await page.addScriptTag({
+    type: "module",
+    content: `
+      import { PluginId, ScribeFrame } from ${JSON.stringify(modulePath)};
+      const host = document.createElement("div");
+      document.body.replaceChildren(host);
+      const editor = new ScribeFrame(host, {
+        content: "before METADATAafter",
+        plugins: [{
+          id: new PluginId("browser-test-inline-widget"),
+          init: () => null,
+          apply: () => null,
+          widgets: () => [{
+            key: "browser-test-inline-widget:metadata",
+            placement: "inline",
+            range: {
+              from: { paragraph: 0, offset: 7 },
+              to: { paragraph: 0, offset: 15 },
+            },
+            props: {},
+            render: {
+              mount(widgetHost) {
+                widgetHost.textContent = "◆";
+                return {
+                  update() {},
+                  destroy() {
+                    widgetHost.replaceChildren();
+                  },
+                };
+              },
+            },
+            selection: "atom",
+          }],
+        }],
+      });
+      editor.focus();
+      window.browserTestEditorReady = true;
+    `,
+  });
+  await page.waitForFunction("window.browserTestEditorReady === true");
+  await page.keyboard.press("Home");
+
+  const boundaries = await page.evaluate(() => {
+    const measure = (
+      selector: string,
+      offset: number,
+    ): number => {
+      const element = document.querySelector<HTMLElement>(selector);
+      const text = element?.firstChild;
+      if (!(text instanceof Text)) throw new Error(`Missing text for ${selector}`);
+      const range = document.createRange();
+      range.setStart(text, offset);
+      range.setEnd(text, offset);
+      return range.getBoundingClientRect().x;
+    };
+    return {
+      before: measure("[data-from='0'][data-to='7']", 7),
+      after: measure("[data-from='15'][data-to='20']", 0),
+    };
+  });
+
+  const fromLeft: number[] = [];
+  for (let offset = 1; offset <= 15; offset += 1) {
+    await page.keyboard.press("ArrowRight");
+    if (offset >= 7) fromLeft.push(await caretX(page));
+  }
+
+  const fromRight: number[] = [await caretX(page)];
+  for (let offset = 14; offset >= 7; offset -= 1) {
+    await page.keyboard.press("ArrowLeft");
+    fromRight.push(await caretX(page));
+  }
+  fromRight.reverse();
+
+  for (const positions of [fromLeft, fromRight]) {
+    expect(positions[0]).toBeCloseTo(boundaries.before, 0);
+    expect(positions[positions.length - 1]).toBeCloseTo(boundaries.after, 0);
+    positions.forEach((position) => {
+      expect(position).toBeGreaterThanOrEqual(boundaries.before - 1);
+      expect(position).toBeLessThanOrEqual(boundaries.after + 1);
+    });
+  }
+});
+
 test("paragraph minimum height follows configured line height", async ({ page }) => {
   const metrics = await page.locator(".s9-editor-root").evaluate((root) => {
     const element = root as HTMLElement;

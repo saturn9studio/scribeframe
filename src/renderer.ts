@@ -1983,7 +1983,7 @@ export class Renderer {
       return this.measureNearestTextBoundary(position, segment);
     }
 
-    return null;
+    return this.measureNearestTextBoundary(position);
   }
 
   private measureTextSegmentPosition(
@@ -2003,7 +2003,7 @@ export class Renderer {
 
   private measureNearestTextBoundary(
     position: Position,
-    unmeasurable: TextSegment,
+    unmeasurable?: TextSegment,
   ): DOMRect | null {
     const candidates = this.segments
       .filter(
