@@ -105,22 +105,24 @@ const inlineWidgetPlugin = (): EditorPlugin<null> => {
     id: new PluginId<null>("inline-widget"),
     init: () => null,
     apply: () => null,
-    widgets: ({ doc }): readonly WidgetDecoration[] =>
-      doc.paragraphs[1]?.text === "widget"
-        ? [
-            {
-              key: "inline-widget:middle",
-              placement: "inline",
-              range: {
-                from: { paragraph: 1, offset: 0 },
-                to: { paragraph: 1, offset: 6 },
-              },
-              props: { label: "widget" },
-              render: renderer,
-              selection: "atom",
-            },
-          ]
-        : [],
+    widgets: ({ doc }): readonly WidgetDecoration[] => {
+      const paragraph = doc.paragraphs.findIndex(
+        ({ text }) => text === "widget" || text === "a XX mark",
+      );
+      if (paragraph < 0) return [];
+      const inlineRange = doc.paragraphs[paragraph].text === "a XX mark";
+      return [{
+        key: "inline-widget:middle",
+        placement: "inline",
+        range: {
+          from: { paragraph, offset: inlineRange ? 2 : 0 },
+          to: { paragraph, offset: inlineRange ? 4 : 6 },
+        },
+        props: { label: "widget" },
+        render: renderer,
+        selection: "atom",
+      }];
+    },
   };
 };
 
@@ -384,6 +386,40 @@ describe("editor input correctness", () => {
     keyDown(container, "Backspace");
 
     expect(editor.getContent()).toBe("before\n\nafter");
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("crosses a persistent inline atom widget in one arrow press", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ScribeFrame(container, {
+      content: "a XX mark",
+      plugins: [inlineWidgetPlugin()],
+    });
+
+    editor.selectRange({
+      from: { paragraph: 0, offset: 2 },
+      to: { paragraph: 0, offset: 2 },
+    });
+    keyDown(container, "ArrowRight");
+    expect(editor.getSelection()).toEqual({
+      anchor: { paragraph: 0, offset: 4 },
+      head: { paragraph: 0, offset: 4 },
+    });
+
+    keyDown(container, "ArrowLeft");
+    expect(editor.getSelection()).toEqual({
+      anchor: { paragraph: 0, offset: 2 },
+      head: { paragraph: 0, offset: 2 },
+    });
+
+    keyDown(container, "ArrowRight", { shiftKey: true });
+    expect(editor.getSelection()).toEqual({
+      anchor: { paragraph: 0, offset: 2 },
+      head: { paragraph: 0, offset: 4 },
+    });
 
     editor.destroy();
     container.remove();

@@ -22,6 +22,7 @@ import {
   clampPosition,
   clampSelection,
   collapsedSelection,
+  comparePositions,
   documentFromText,
   documentToText,
   firstPosition,
@@ -965,10 +966,33 @@ export class ScribeFrame {
     const position =
       !extend && !selectionIsCollapsed(this.selection)
         ? edgePosition
-        : direction < 0
-          ? previousPosition(this.doc, this.selection.head)
-          : nextPosition(this.doc, this.selection.head);
+        : this.horizontalAtomBoundary(this.selection.head, direction) ??
+          (direction < 0
+            ? previousPosition(this.doc, this.selection.head)
+            : nextPosition(this.doc, this.selection.head));
     this.setSelectionHead(position, extend);
+  }
+
+  private horizontalAtomBoundary(
+    position: Position,
+    direction: -1 | 1,
+  ): Position | null {
+    const widgets = this.collectOutput().widgets;
+    for (const widget of widgets) {
+      if (widget.selection !== "atom") continue;
+      const range = this.normalizedWidgetRange(widget);
+      if (isSamePosition(range.from, range.to)) continue;
+
+      const afterStart = comparePositions(position, range.from);
+      const beforeEnd = comparePositions(position, range.to);
+      if (direction > 0 && afterStart >= 0 && beforeEnd < 0) {
+        return range.to;
+      }
+      if (direction < 0 && afterStart > 0 && beforeEnd <= 0) {
+        return range.from;
+      }
+    }
+    return null;
   }
 
   private moveByWord(direction: -1 | 1, extend: boolean): void {

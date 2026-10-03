@@ -249,6 +249,7 @@ test("caret geometry stays at adjacent text while crossing inline widget source"
         }],
       });
       editor.focus();
+      window.browserTestEditor = editor;
       window.browserTestEditorReady = true;
     `,
   });
@@ -274,27 +275,22 @@ test("caret geometry stays at adjacent text while crossing inline widget source"
     };
   });
 
-  const fromLeft: number[] = [];
-  for (let offset = 1; offset <= 15; offset += 1) {
+  for (let offset = 0; offset < 7; offset += 1) {
     await page.keyboard.press("ArrowRight");
-    if (offset >= 7) fromLeft.push(await caretX(page));
   }
+  expect(await caretX(page)).toBeCloseTo(boundaries.before, 0);
 
-  const fromRight: number[] = [await caretX(page)];
-  for (let offset = 14; offset >= 7; offset -= 1) {
-    await page.keyboard.press("ArrowLeft");
-    fromRight.push(await caretX(page));
-  }
-  fromRight.reverse();
+  await page.keyboard.press("ArrowRight");
+  expect(
+    await page.evaluate("window.browserTestEditor.getSelection().head.offset"),
+  ).toBe(15);
+  expect(await caretX(page)).toBeCloseTo(boundaries.after, 0);
 
-  for (const positions of [fromLeft, fromRight]) {
-    expect(positions[0]).toBeCloseTo(boundaries.before, 0);
-    expect(positions[positions.length - 1]).toBeCloseTo(boundaries.after, 0);
-    positions.forEach((position) => {
-      expect(position).toBeGreaterThanOrEqual(boundaries.before - 1);
-      expect(position).toBeLessThanOrEqual(boundaries.after + 1);
-    });
-  }
+  await page.keyboard.press("ArrowLeft");
+  expect(
+    await page.evaluate("window.browserTestEditor.getSelection().head.offset"),
+  ).toBe(7);
+  expect(await caretX(page)).toBeCloseTo(boundaries.before, 0);
 });
 
 test("paragraph minimum height follows configured line height", async ({ page }) => {
