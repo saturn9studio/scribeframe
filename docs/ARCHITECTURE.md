@@ -147,6 +147,13 @@ Non-focusable block widgets remain editor-owned rendered content rather than tab
 stops. Vertical caret navigation resolves to visible text positions and skips
 collapsed caret targets inside their hidden source ranges; focusable block
 widgets keep receiving focus through their `focus()` handle.
+Horizontal caret geometry inside hidden inline decorations or inline-widget
+source ranges resolves from the nearest measurable same-paragraph text boundary
+rather than falling back to the beginning of the paragraph.
+Horizontal arrow movement treats a currently rendered atom widget as one caret
+step, including extended selections. Widgets that disappear when their source
+boundary becomes selected, such as editable source-backed widgets, continue
+through their revealed source normally.
 
 ## Plugin lifecycle
 
