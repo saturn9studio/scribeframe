@@ -808,6 +808,10 @@ export class Renderer {
     const top = this.paragraphTop(index, clamped.paragraph);
     const bottom = top + this.paragraphLayoutHeight(index, clamped.paragraph);
     this.revealVerticalRange(top, bottom, options);
+    const measuredRange = this.measuredSelectionVerticalRange(clamped, clamped);
+    if (measuredRange) {
+      this.revealVerticalRange(measuredRange.top, measuredRange.bottom, options);
+    }
   }
 
   revealSelection(selection: Selection, options: RendererRevealOptions = {}): void {

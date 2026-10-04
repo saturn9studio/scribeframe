@@ -68,6 +68,15 @@ const keyDown = (
   );
 };
 
+const setViewport = (element: HTMLElement, clientHeight: number): void => {
+  Object.defineProperty(element, "clientHeight", {
+    configurable: true,
+    value: clientHeight,
+  });
+  element.getBoundingClientRect = () =>
+    box(0, 0, 400, clientHeight);
+};
+
 const setSelection = (
   editor: ScribeFrame,
   anchor: { readonly paragraph: number; readonly offset: number },
@@ -205,6 +214,47 @@ describe("editor cursor and selection behavior", () => {
       anchor: { paragraph: 0, offset: 1 },
       head: { paragraph: 1, offset: 1 },
     });
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("keeps the moving endpoint visible while extending vertical selections", () => {
+    const container = document.createElement("div");
+    setViewport(container, 60);
+    document.body.append(container);
+    const editor = new ScribeFrame(container, {
+      content: Array.from({ length: 20 }, (_, index) => `line ${index}`).join("\n"),
+      virtualization: { estimateParagraphHeight: 20, overscan: 0 },
+    });
+
+    setSelection(editor, { paragraph: 2, offset: 0 }, { paragraph: 2, offset: 0 });
+    for (let index = 0; index < 4; index += 1) {
+      keyDown(container, "ArrowDown", { shiftKey: true });
+    }
+
+    expect(editor.getSelection()).toEqual({
+      anchor: { paragraph: 2, offset: 0 },
+      head: { paragraph: 6, offset: 0 },
+    });
+    expect(container.scrollTop).toBe(80);
+
+    editor.selectRange(
+      {
+        from: { paragraph: 10, offset: 0 },
+        to: { paragraph: 10, offset: 0 },
+      },
+      { reveal: true, block: "start" },
+    );
+    for (let index = 0; index < 4; index += 1) {
+      keyDown(container, "ArrowUp", { shiftKey: true });
+    }
+
+    expect(editor.getSelection()).toEqual({
+      anchor: { paragraph: 10, offset: 0 },
+      head: { paragraph: 6, offset: 0 },
+    });
+    expect(container.scrollTop).toBe(120);
 
     editor.destroy();
     container.remove();
