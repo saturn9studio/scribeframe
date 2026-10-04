@@ -1051,8 +1051,11 @@ export class ScribeFrame {
         )
         .build(),
     );
-    if (!extend) {
-      this.renderer.focusWidgetAt(position);
+    const focusedWidget = !extend && this.renderer.focusWidgetAt(position);
+    if (!focusedWidget) {
+      this.revealPosition(position, {
+        intent: extend ? "selection" : "caret",
+      });
     }
   }
 

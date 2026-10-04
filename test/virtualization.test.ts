@@ -278,6 +278,42 @@ describe("renderer virtualization and scrolling", () => {
     container.remove();
   });
 
+  it("refines position reveals to the measured text line", () => {
+    const container = document.createElement("div");
+    setViewport(container, 100);
+    Object.defineProperty(container, "scrollHeight", {
+      configurable: true,
+      value: 200,
+    });
+    document.body.append(container);
+    const editor = new ScribeFrame(container, {
+      content: "a paragraph that wraps across several visual lines",
+      virtualization: false,
+    });
+    const originalRangeRect = Range.prototype.getBoundingClientRect;
+    Range.prototype.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        top: 120,
+        right: 0,
+        bottom: 140,
+        width: 0,
+        height: 20,
+        x: 0,
+        y: 120,
+        toJSON: () => ({}),
+      }) as DOMRect;
+
+    try {
+      editor.revealPosition({ paragraph: 0, offset: 20 });
+      expect(container.scrollTop).toBe(40);
+    } finally {
+      Range.prototype.getBoundingClientRect = originalRangeRect;
+      editor.destroy();
+      container.remove();
+    }
+  });
+
   it("selects ranges and reveals the selection with centered scrolling", () => {
     const container = document.createElement("div");
     setViewport(container, 100);
