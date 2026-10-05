@@ -34,6 +34,12 @@
   position: relative;
 }
 
+.s9-editor-mirror {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+}
+
 .s9-editor-surface {
   background: var(--s9-editor-surface-background);
   min-height: 100%;
@@ -92,6 +98,11 @@
 }
 
 .s9-caret-hidden {
+  display: none;
+}
+
+.s9-editor-mirror .s9-selection-layer,
+.s9-editor-mirror .s9-caret {
   display: none;
 }
 

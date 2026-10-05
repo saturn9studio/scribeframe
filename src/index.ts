@@ -25,6 +25,7 @@ export {
   ScribeFrame,
   StaleTransactionError,
   type EditorRevealOptions,
+  type EditorRenderMirror,
   type EditorScrollState,
   type EditorSelectRangeOptions,
   type EditorStateSnapshot,

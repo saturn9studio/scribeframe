@@ -64,6 +64,7 @@ const editor = new ScribeFrame(hostElement, {
 | `getSelection(): Selection` | Returns the current anchor/head selection. |
 | `getSyntaxSnapshot(): SyntaxSnapshot` | Returns the latest syntax provider snapshot. |
 | `getScrollState(): EditorScrollState` | Returns scroll top, scroll height, client height, and scroll fraction. |
+| `attachRenderMirror(element): EditorRenderMirror` | Attaches a non-interactive, non-virtualized renderer driven by the editor's exact document, decorations, and widgets. |
 | `getPluginState(id): S \| undefined` | Reads a plugin's state by `PluginId` object identity. |
 | `executeCommand(name): boolean` | Runs an app, plugin, or built-in command by name. |
 | `canUndo()` / `canRedo()` | Reports whether undo/redo is available and not read-only. |
@@ -80,6 +81,16 @@ const editor = new ScribeFrame(hostElement, {
 | `selectRange(range, options?)` | Sets selection from `range.from` to `range.to`; `options.reveal` also reveals it. |
 | `dispatch(transaction)` | Applies a transaction, updates plugins/syntax/history, and rerenders. |
 | `destroy()` | Tears down listeners, plugins, widgets, renderer DOM, and restored host attributes. |
+
+`attachRenderMirror()` is intended for scaled document overviews and print-like
+previews that must use the same renderer output as the editor. The mirror is
+always read-only, inert, and non-virtualized. Its `destroy()` method is
+idempotent; destroying the editor also destroys all attached mirrors. The host
+receives the `s9-editor-root` and `s9-editor-mirror` classes so integrations can
+apply the same typography, width, theme variables, and renderer styles as the
+primary editor. Mirrors share measured paragraph and block-widget heights with
+the primary renderer, including resize-driven updates, so virtual scroll
+geometry can use complete-document measurements.
 
 ### Scrolling and virtualization options
 

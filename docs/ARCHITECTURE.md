@@ -22,8 +22,13 @@ code outside the core package source, not hardcoded into the runtime.
    reconfiguration, plus pure decoration/widget output.
 7. **Renderer**: virtualized DOM output, virtual caret, selection painting,
    scrolling geometry, widget mount/update/destroy, and CSS-variable driven
-   visual defaults. Paragraph minimum height defaults to one computed line box
-   so empty-paragraph geometry follows host-configured typography.
+   visual defaults. An editor can attach inert, non-virtualized render mirrors
+   that consume the same document, decorations, widgets, and widget renderers
+   without creating a second editor or syntax pipeline. Renderer instances share
+   paragraph and block-widget measurements, and resize observation feeds
+   asynchronously changing mirror geometry back into the virtualized primary
+   renderer. Paragraph minimum height defaults to one computed line box so
+   empty-paragraph geometry follows host-configured typography.
 8. **Input manager**: focus-proxy textarea, keyboard editing, clipboard, and
    pointer-to-position mapping.
 9. **Example integrations**: demo code can provide syntax providers, projections,

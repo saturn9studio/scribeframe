@@ -188,7 +188,19 @@ export interface RendererScrollState {
 export interface RendererOptions {
   readonly scrollContainer?: HTMLElement;
   readonly virtualization?: RendererVirtualizationOptions | false;
+  readonly measurements?: RendererMeasurements;
+  readonly onMeasurementsChange?: () => void;
 }
+
+export interface RendererMeasurements {
+  readonly paragraphHeights: Map<number, number>;
+  readonly blockWidgetHeights: Map<WidgetKey, number>;
+}
+
+export const createRendererMeasurements = (): RendererMeasurements => ({
+  paragraphHeights: new Map(),
+  blockWidgetHeights: new Map(),
+});
 
 export interface RendererInput {
   readonly doc: EditorDocument;
@@ -494,8 +506,8 @@ export class Renderer {
   private readonly selectionLayer: HTMLElement;
   private readonly scrollContainer: HTMLElement;
   private readonly virtualization: Required<RendererVirtualizationOptions>;
-  private readonly paragraphHeights = new Map<number, number>();
-  private readonly blockWidgetHeights = new Map<WidgetKey, number>();
+  private readonly measurements: RendererMeasurements;
+  private readonly resizeObserver: ResizeObserver | null;
   private readonly segments: TextSegment[] = [];
   private readonly widgets = new Map<WidgetKey, WidgetRecord>();
   private currentInput: RendererInput | null = null;
@@ -534,6 +546,8 @@ export class Renderer {
           ? 36
           : (options.virtualization?.estimateParagraphHeight ?? 36),
     };
+    this.measurements =
+      options.measurements ?? createRendererMeasurements();
     this.surface = document.createElement("div");
     this.surface.className = "s9-editor-surface";
     this.selectionLayer = document.createElement("div");
@@ -543,6 +557,18 @@ export class Renderer {
     this.caret.className = "s9-caret";
     this.caret.setAttribute("aria-hidden", "true");
     this.root.append(this.surface, this.selectionLayer, this.caret);
+    this.resizeObserver =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(() => {
+            if (
+              this.currentIndex &&
+              this.measureRenderedHeights(this.currentIndex)
+            ) {
+              options.onMeasurementsChange?.();
+            }
+          });
+    this.resizeObserver?.observe(this.surface);
     this.scrollContainer.addEventListener("scroll", this.handleScroll, {
       passive: true,
     });
@@ -682,8 +708,10 @@ export class Renderer {
     }
 
     this.destroyMissingWidgets([...mountedWidgetKeys]);
+    this.resizeObserver?.unobserve(this.surface);
     this.surface.replaceWith(nextSurface);
     this.surface = nextSurface;
+    this.resizeObserver?.observe(this.surface);
     this.currentWindow = window;
     mountedWidgetKeys.forEach((key) => {
       this.widgets.get(key)?.handle.afterRender?.();
@@ -719,6 +747,7 @@ export class Renderer {
 
   destroy(): void {
     this.scrollContainer.removeEventListener("scroll", this.handleScroll);
+    this.resizeObserver?.disconnect();
     this.widgets.forEach((record) => {
       record.host.removeEventListener("focus", this.handleWidgetHostFocus);
       record.handle.destroy();
@@ -727,8 +756,6 @@ export class Renderer {
     this.currentWidgets.clear();
     this.currentIndex = null;
     this.segments.length = 0;
-    this.paragraphHeights.clear();
-    this.blockWidgetHeights.clear();
     this.currentInput = null;
     this.root.replaceChildren();
     this.root.classList.remove("s9-editor");
@@ -1079,14 +1106,25 @@ export class Renderer {
     return element;
   }
 
-  private measureRenderedHeights(index: RenderIndex): void {
+  private measureRenderedHeights(index: RenderIndex): boolean {
+    let changed = false;
     this.surface
       .querySelectorAll<HTMLElement>(".s9-paragraph[data-paragraph]")
       .forEach((paragraphElement) => {
         const paragraphIndex = Number(paragraphElement.dataset.paragraph);
         const rect = paragraphElement.getBoundingClientRect();
         if (Number.isFinite(paragraphIndex) && rect.height > 0) {
-          this.paragraphHeights.set(paragraphIndex, rect.height);
+          const style = getComputedStyle(paragraphElement);
+          const marginTop = Number.parseFloat(style.marginTop) || 0;
+          const marginBottom = Number.parseFloat(style.marginBottom) || 0;
+          const layoutHeight = rect.height + marginTop + marginBottom;
+          if (
+            this.measurements.paragraphHeights.get(paragraphIndex) !==
+            layoutHeight
+          ) {
+            this.measurements.paragraphHeights.set(paragraphIndex, layoutHeight);
+            changed = true;
+          }
         }
       });
 
@@ -1096,7 +1134,10 @@ export class Renderer {
         const key = widgetElement.dataset.widgetKey as WidgetKey | undefined;
         const rect = widgetElement.getBoundingClientRect();
         if (key && rect.height > 0) {
-          this.blockWidgetHeights.set(key, rect.height);
+          if (this.measurements.blockWidgetHeights.get(key) !== rect.height) {
+            this.measurements.blockWidgetHeights.set(key, rect.height);
+            changed = true;
+          }
         }
       });
 
@@ -1105,14 +1146,18 @@ export class Renderer {
         .flat()
         .map((widget) => widget.key),
     );
-    this.blockWidgetHeights.forEach((_height, key) => {
-      if (!currentKeys.has(key)) this.blockWidgetHeights.delete(key);
+    this.measurements.blockWidgetHeights.forEach((_height, key) => {
+      if (!currentKeys.has(key)) {
+        this.measurements.blockWidgetHeights.delete(key);
+        changed = true;
+      }
     });
+    return changed;
   }
 
   private paragraphHeight(paragraphIndex: number): number {
     return (
-      this.paragraphHeights.get(paragraphIndex) ??
+      this.measurements.paragraphHeights.get(paragraphIndex) ??
       this.virtualization.estimateParagraphHeight
     );
   }
@@ -1129,7 +1174,7 @@ export class Renderer {
     ).reduce(
       (total, widget) =>
         total +
-        (this.blockWidgetHeights.get(widget.key) ??
+        (this.measurements.blockWidgetHeights.get(widget.key) ??
           this.blockWidgetFallbackHeight(index, widget)),
       0,
     );

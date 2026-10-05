@@ -43,6 +43,7 @@ import {
 } from "./plugin.js";
 import { PluginSlot, createPluginSlot } from "./pluginSlot.js";
 import {
+  createRendererMeasurements,
   Renderer,
   type RendererRevealOptions,
   type RendererScrollState,
@@ -69,6 +70,11 @@ export interface EditorSelectRangeOptions extends EditorRevealOptions {
 }
 
 export interface EditorStateSnapshot extends EditorCommandSnapshot {}
+
+export interface EditorRenderMirror {
+  readonly element: HTMLElement;
+  destroy(): void;
+}
 
 export class StaleTransactionError extends Error {
   constructor(readonly transaction: Transaction) {
@@ -184,6 +190,12 @@ export class ScribeFrame {
   private readonly history: EditorHistory;
   private readonly textarea: HTMLTextAreaElement;
   private readonly renderer: Renderer;
+  private readonly rendererMeasurements = createRendererMeasurements();
+  private readonly renderMirrors = new Set<{
+    readonly element: HTMLElement;
+    readonly renderer: Renderer;
+    active: boolean;
+  }>();
   private slots: PluginSlot[];
   private isComposing = false;
   private ignoreNextCompositionInput = false;
@@ -192,6 +204,15 @@ export class ScribeFrame {
   private selectionDragAnchor: Position | null = null;
   private interactionPress: InteractionPress | null = null;
   private preferredSelectionX: number | null = null;
+  private measurementRenderFrame: number | null = null;
+
+  private readonly handleRendererMeasurementsChange = (): void => {
+    if (this.destroyed || this.measurementRenderFrame !== null) return;
+    this.measurementRenderFrame = requestAnimationFrame(() => {
+      this.measurementRenderFrame = null;
+      if (!this.destroyed) this.render();
+    });
+  };
 
   private readonly handleSelectionDragMove = (event: MouseEvent): void => {
     if (!this.selectionDragAnchor) return;
@@ -363,6 +384,8 @@ export class ScribeFrame {
       {
         scrollContainer: options.scrollContainer,
         virtualization: options.virtualization,
+        measurements: this.rendererMeasurements,
+        onMeasurementsChange: this.handleRendererMeasurementsChange,
       },
     );
 
@@ -400,6 +423,38 @@ export class ScribeFrame {
 
   getScrollState(): EditorScrollState {
     return this.renderer.getScrollState();
+  }
+
+  attachRenderMirror(element: HTMLElement): EditorRenderMirror {
+    if (this.destroyed) {
+      throw new Error("Cannot attach a render mirror to a destroyed editor");
+    }
+
+    element.classList.add("s9-editor-root", "s9-editor-mirror");
+    element.setAttribute("aria-hidden", "true");
+    element.inert = true;
+    const renderer = new Renderer(
+      element,
+      {
+        dispatch: () => {
+          throw new Error("Read-only render mirrors cannot dispatch transactions");
+        },
+        focusEditor: () => {},
+      },
+      {
+        virtualization: false,
+        measurements: this.rendererMeasurements,
+        onMeasurementsChange: this.handleRendererMeasurementsChange,
+      },
+    );
+    const mirror = { element, renderer, active: true };
+    this.renderMirrors.add(mirror);
+    this.render();
+
+    return {
+      element,
+      destroy: () => this.destroyRenderMirror(mirror),
+    };
   }
 
   getPluginState<S>(id: PluginId<S>): S | undefined {
@@ -578,14 +633,24 @@ export class ScribeFrame {
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
+    if (this.measurementRenderFrame !== null) {
+      cancelAnimationFrame(this.measurementRenderFrame);
+      this.measurementRenderFrame = null;
+    }
     this.unbindEvents();
     this.handleSelectionDragEnd();
     this.clearInteractionPress();
     const snapshot = this.snapshot();
     this.slots.forEach((slot) => slot.destroy(snapshot));
     this.slots = [];
+    [...this.renderMirrors].forEach((mirror) =>
+      this.destroyRenderMirror(mirror)
+    );
+    this.renderMirrors.clear();
     this.textarea.remove();
     this.renderer.destroy();
+    this.rendererMeasurements.paragraphHeights.clear();
+    this.rendererMeasurements.blockWidgetHeights.clear();
     this.container.classList.remove("s9-editor-root", editorInputFocusedClass);
     restoreRootAttributes(this.container, this.rootAttributeSnapshot);
   }
@@ -1260,14 +1325,43 @@ export class ScribeFrame {
 
   private render(): void {
     const output = this.collectOutput();
-    this.renderer.render({
+    const input = {
       doc: this.doc,
       selection: this.selection,
       readOnly: this.readOnly,
       decorations: output.decorations,
       widgets: output.widgets,
-    });
+    };
+    this.renderMirrors.forEach((mirror) => this.renderMirror(mirror, output));
+    this.renderer.render(input);
     this.renderer.syncInputProxy(this.textarea);
+  }
+
+  private renderMirror(
+    mirror: { readonly renderer: Renderer },
+    output: RenderOutput,
+  ): void {
+    mirror.renderer.render({
+      doc: this.doc,
+      selection: this.selection,
+      readOnly: true,
+      decorations: output.decorations,
+      widgets: output.widgets,
+    });
+  }
+
+  private destroyRenderMirror(mirror: {
+    readonly element: HTMLElement;
+    readonly renderer: Renderer;
+    active: boolean;
+  }): void {
+    if (!mirror.active) return;
+    mirror.active = false;
+    this.renderMirrors.delete(mirror);
+    mirror.renderer.destroy();
+    mirror.element.classList.remove("s9-editor-root", "s9-editor-mirror");
+    mirror.element.removeAttribute("aria-hidden");
+    mirror.element.inert = false;
   }
 
   private collectOutput(snapshot: EditorStateSnapshot = this.snapshot()): RenderOutput {
