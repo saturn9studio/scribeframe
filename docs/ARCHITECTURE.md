@@ -46,7 +46,8 @@ The demo Markdown adapter is one provider implementation. It lives under
 `demo/src/markdown`, imports the core through the public `@saturn9/scribeframe`
 barrel, treats document text as Markdown source, builds an identity source map,
 and parses that text with the dev-only `@saturn9/markoffset` dependency. Parser
-token offsets are mapped back to document ranges before demo plugins turn them
+blocks retain immutable block-local token trees; the adapter resolves absolute
+token views and maps them back to document ranges before demo plugins turn them
 into decorations, widgets, or commands. Host applications
 that need richer persistence/display mappings can provide their own adapters
 without changing core.

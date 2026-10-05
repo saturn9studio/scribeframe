@@ -58,15 +58,15 @@ describe("Markdown demo projection", () => {
 
 describe("syntax snapshots", () => {
   it("parses Markdown text and maps token ranges back to identical display ranges", () => {
-    const markdown = "# Heading\nBody **bold** text";
+    const markdown = "Before\n\n# Heading\nBody **bold** text";
     const snapshot = buildMarkdownSyntaxSnapshot(documentFromText(markdown));
 
     expect(snapshot.projection.markdownText).toBe(markdown);
 
     const heading = snapshot.tokenViews.find((token) => token.kind === "heading");
 
-    expect(heading?.sourceRange).toEqual({ from: 0, to: 9 });
-    expect(heading?.displayRange).toEqual({ from: 0, to: 9 });
+    expect(heading?.sourceRange).toEqual({ from: 8, to: 17 });
+    expect(heading?.displayRange).toEqual({ from: 8, to: 17 });
     expect(
       snapshot.tokenViews.map((token) => ({
         sourceRange: token.sourceRange,
