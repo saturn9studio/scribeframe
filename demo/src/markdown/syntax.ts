@@ -1,10 +1,13 @@
 import {
+  blockTokens,
   gfmParser,
   parseDocument,
   reparse,
+  tokenViews as resolveTokenViews,
   type Change,
   type ParseState,
   type Token,
+  type TokenView,
 } from "@saturn9/markoffset";
 import type {
   DisplayChange,
@@ -52,13 +55,15 @@ export const requireMarkdownSyntaxSnapshot = (
   );
 };
 
-const flattenBlockTokens = (tokens: readonly Token[]): readonly Token[] =>
-  tokens.flatMap((token) => [
-    token,
-    ...(token.kind === "bullet_list" ||
-    token.kind === "ordered_list" ||
-    token.kind === "list_item"
-      ? flattenBlockTokens(token.children ?? [])
+const flattenBlockTokenViews = (
+  views: readonly TokenView[],
+): readonly TokenView[] =>
+  views.flatMap((view) => [
+    view,
+    ...(view.token.kind === "bullet_list" ||
+    view.token.kind === "ordered_list" ||
+    view.token.kind === "list_item"
+      ? flattenBlockTokenViews(view.children)
       : []),
   ]);
 
@@ -67,18 +72,20 @@ const snapshotFromParseState = (
   parseState: ParseState,
   version: number,
 ): MarkdownSyntaxSnapshot => {
-  const tokens = parseState.tokens;
-  const tokenViews = flattenBlockTokens(tokens).map(
-    (token): MarkdownSyntaxTokenView => {
-      const sourceRange = { from: token.start, to: token.end };
-      return {
-        token,
-        kind: token.kind,
-        sourceRange,
-        displayRange: projection.markdownRangeToDisplay(sourceRange),
-      };
-    },
-  );
+  const tokens = blockTokens(parseState.blocks);
+  const tokenViews = flattenBlockTokenViews(resolveTokenViews(parseState.blocks))
+    .filter((view) => !view.generated)
+    .map(
+      (view): MarkdownSyntaxTokenView => {
+        const sourceRange = { from: view.start, to: view.end };
+        return {
+          token: view.token,
+          kind: view.token.kind,
+          sourceRange,
+          displayRange: projection.markdownRangeToDisplay(sourceRange),
+        };
+      },
+    );
 
   return {
     kind: markdownSyntaxKind,
