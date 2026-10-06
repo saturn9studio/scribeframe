@@ -43,6 +43,7 @@ import {
 } from "./plugin.js";
 import { PluginSlot, createPluginSlot } from "./pluginSlot.js";
 import {
+  createRendererMeasurements,
   Renderer,
   type RendererRevealOptions,
   type RendererScrollState,
@@ -69,6 +70,11 @@ export interface EditorSelectRangeOptions extends EditorRevealOptions {
 }
 
 export interface EditorStateSnapshot extends EditorCommandSnapshot {}
+
+export interface EditorRenderMirror {
+  readonly element: HTMLElement;
+  destroy(): void;
+}
 
 export class StaleTransactionError extends Error {
   constructor(readonly transaction: Transaction) {
@@ -184,6 +190,13 @@ export class ScribeFrame {
   private readonly history: EditorHistory;
   private readonly textarea: HTMLTextAreaElement;
   private readonly renderer: Renderer;
+  private readonly rendererMeasurements = createRendererMeasurements();
+  private readonly renderMirrors = new Set<{
+    readonly element: HTMLElement;
+    readonly renderer: Renderer;
+    readonly measurements: ReturnType<typeof createRendererMeasurements>;
+    active: boolean;
+  }>();
   private slots: PluginSlot[];
   private isComposing = false;
   private ignoreNextCompositionInput = false;
@@ -192,6 +205,15 @@ export class ScribeFrame {
   private selectionDragAnchor: Position | null = null;
   private interactionPress: InteractionPress | null = null;
   private preferredSelectionX: number | null = null;
+  private measurementRenderFrame: number | null = null;
+
+  private readonly handleRendererMeasurementsChange = (): void => {
+    if (this.destroyed || this.measurementRenderFrame !== null) return;
+    this.measurementRenderFrame = requestAnimationFrame(() => {
+      this.measurementRenderFrame = null;
+      if (!this.destroyed) this.render();
+    });
+  };
 
   private readonly handleSelectionDragMove = (event: MouseEvent): void => {
     if (!this.selectionDragAnchor) return;
@@ -363,6 +385,8 @@ export class ScribeFrame {
       {
         scrollContainer: options.scrollContainer,
         virtualization: options.virtualization,
+        measurements: this.rendererMeasurements,
+        onMeasurementsChange: this.handleRendererMeasurementsChange,
       },
     );
 
@@ -400,6 +424,55 @@ export class ScribeFrame {
 
   getScrollState(): EditorScrollState {
     return this.renderer.getScrollState();
+  }
+
+  subscribeScrollState(
+    listener: (state: EditorScrollState) => void,
+  ): () => void {
+    return this.renderer.subscribeScrollState(listener);
+  }
+
+  attachRenderMirror(element: HTMLElement): EditorRenderMirror {
+    if (this.destroyed) {
+      throw new Error("Cannot attach a render mirror to a destroyed editor");
+    }
+
+    element.classList.add("s9-editor-root", "s9-editor-mirror");
+    element.setAttribute("aria-hidden", "true");
+    element.inert = true;
+    const measurements = createRendererMeasurements();
+    let mirror: {
+      readonly element: HTMLElement;
+      readonly renderer: Renderer;
+      readonly measurements: ReturnType<typeof createRendererMeasurements>;
+      active: boolean;
+    };
+    const renderer = new Renderer(
+      element,
+      {
+        dispatch: () => {
+          throw new Error("Read-only render mirrors cannot dispatch transactions");
+        },
+        focusEditor: () => {},
+      },
+      {
+        virtualization: false,
+        measurements,
+        onMeasurementsChange: () => {
+          if (!mirror.active) return;
+          this.rebuildMirrorFallbackMeasurements();
+          this.handleRendererMeasurementsChange();
+        },
+      },
+    );
+    mirror = { element, renderer, measurements, active: true };
+    this.renderMirrors.add(mirror);
+    this.render();
+
+    return {
+      element,
+      destroy: () => this.destroyRenderMirror(mirror),
+    };
   }
 
   getPluginState<S>(id: PluginId<S>): S | undefined {
@@ -452,6 +525,7 @@ export class ScribeFrame {
     this.slots.forEach((slot) => {
       slot.apply(transaction, this.snapshot());
     });
+    this.clearRendererMeasurements();
     this.render();
     this.emitChange();
   }
@@ -525,6 +599,11 @@ export class ScribeFrame {
     this.renderer.syncInputProxy(this.textarea);
   }
 
+  scrollViewportCenterToDocumentFraction(fraction: number): void {
+    this.renderer.scrollViewportCenterToDocumentFraction(fraction);
+    this.renderer.syncInputProxy(this.textarea);
+  }
+
   selectRange(range: Range, options: EditorSelectRangeOptions = {}): void {
     this.preferredSelectionX = null;
     this.dispatch(
@@ -578,14 +657,23 @@ export class ScribeFrame {
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
+    if (this.measurementRenderFrame !== null) {
+      cancelAnimationFrame(this.measurementRenderFrame);
+      this.measurementRenderFrame = null;
+    }
     this.unbindEvents();
     this.handleSelectionDragEnd();
     this.clearInteractionPress();
     const snapshot = this.snapshot();
     this.slots.forEach((slot) => slot.destroy(snapshot));
     this.slots = [];
+    [...this.renderMirrors].forEach((mirror) =>
+      this.destroyRenderMirror(mirror)
+    );
+    this.renderMirrors.clear();
     this.textarea.remove();
     this.renderer.destroy();
+    this.clearRendererMeasurements();
     this.container.classList.remove("s9-editor-root", editorInputFocusedClass);
     restoreRootAttributes(this.container, this.rootAttributeSnapshot);
   }
@@ -1259,15 +1347,92 @@ export class ScribeFrame {
   }
 
   private render(): void {
-    const output = this.collectOutput();
-    this.renderer.render({
+    const snapshot = this.snapshot();
+    const output = this.collectOutput(snapshot);
+    const mirrorOutput = this.renderMirrors.size === 0
+      ? null
+      : snapshot.readOnly
+        ? output
+        : this.collectOutput({ ...snapshot, readOnly: true });
+    const input = {
       doc: this.doc,
       selection: this.selection,
       readOnly: this.readOnly,
       decorations: output.decorations,
       widgets: output.widgets,
-    });
+    };
+    if (mirrorOutput) {
+      this.renderMirrors.forEach((mirror) =>
+        this.renderMirror(mirror, mirrorOutput)
+      );
+    }
+    this.renderer.render(input);
     this.renderer.syncInputProxy(this.textarea);
+  }
+
+  private renderMirror(
+    mirror: {
+      readonly renderer: Renderer;
+      readonly measurements: ReturnType<typeof createRendererMeasurements>;
+    },
+    output: RenderOutput,
+  ): void {
+    mirror.renderer.render({
+      doc: this.doc,
+      selection: this.selection,
+      readOnly: true,
+      decorations: output.decorations,
+      widgets: output.widgets,
+    });
+    this.rebuildMirrorFallbackMeasurements();
+  }
+
+  private destroyRenderMirror(mirror: {
+    readonly element: HTMLElement;
+    readonly renderer: Renderer;
+    readonly measurements: ReturnType<typeof createRendererMeasurements>;
+    active: boolean;
+  }): void {
+    if (!mirror.active) return;
+    mirror.active = false;
+    this.renderMirrors.delete(mirror);
+    mirror.renderer.destroy();
+    this.rebuildMirrorFallbackMeasurements();
+    mirror.element.classList.remove("s9-editor-root", "s9-editor-mirror");
+    mirror.element.removeAttribute("aria-hidden");
+    mirror.element.inert = false;
+    if (!this.destroyed) this.render();
+  }
+
+  private rebuildMirrorFallbackMeasurements(): void {
+    const paragraphHeights =
+      this.rendererMeasurements.fallbackParagraphHeights;
+    const blockWidgetHeights =
+      this.rendererMeasurements.fallbackBlockWidgetHeights;
+    paragraphHeights.clear();
+    blockWidgetHeights.clear();
+    this.renderMirrors.forEach((mirror) => {
+      if (!mirror.active) return;
+      mirror.measurements.paragraphHeights.forEach((height, paragraph) => {
+        paragraphHeights.set(paragraph, height);
+      });
+      mirror.measurements.blockWidgetHeights.forEach((height, key) => {
+        blockWidgetHeights.set(key, height);
+      });
+    });
+  }
+
+  private clearRendererMeasurements(): void {
+    this.rendererMeasurements.paragraphHeights.clear();
+    this.rendererMeasurements.blockWidgetHeights.clear();
+    this.rendererMeasurements.fallbackParagraphHeights.clear();
+    this.rendererMeasurements.fallbackBlockWidgetHeights.clear();
+    this.renderMirrors.forEach((mirror) => {
+      mirror.measurements.paragraphHeights.clear();
+      mirror.measurements.blockWidgetHeights.clear();
+      mirror.measurements.fallbackParagraphHeights.clear();
+      mirror.measurements.fallbackBlockWidgetHeights.clear();
+    });
   }
 
   private collectOutput(snapshot: EditorStateSnapshot = this.snapshot()): RenderOutput {

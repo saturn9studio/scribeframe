@@ -1,4 +1,4 @@
-import { ScribeFrame } from "@saturn9/scribeframe";
+import { PluginId, ScribeFrame } from "@saturn9/scribeframe";
 import {
   codeBlockWidgetPlugin,
   markdownPlugin,
@@ -78,6 +78,17 @@ const editor = new ScribeFrame(host, {
   plugins: [markdownPlugin(), codeBlockWidgetPlugin()],
   onChange: () => updateDemo(),
 });
+
+if (import.meta.env.DEV) {
+  (
+    globalThis as typeof globalThis & {
+      __SCRIBEFRAME_TEST_API__?: {
+        readonly PluginId: typeof PluginId;
+        readonly ScribeFrame: typeof ScribeFrame;
+      };
+    }
+  ).__SCRIBEFRAME_TEST_API__ = { PluginId, ScribeFrame };
+}
 const updateDemo = (): void => {
   const syntax = requireMarkdownSyntaxSnapshot(editor.getSyntaxSnapshot());
   documentOutput.textContent = editor.getContent();

@@ -46,6 +46,95 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/");
 });
 
+test("scaled render mirrors preserve primary virtualization geometry", async ({
+  page,
+}) => {
+  const scrollHeights = await page.evaluate(() => {
+    const { PluginId, ScribeFrame } = (
+      globalThis as typeof globalThis & {
+        __SCRIBEFRAME_TEST_API__?: {
+          readonly PluginId: new (name: string) => unknown;
+          readonly ScribeFrame: new (
+            host: HTMLElement,
+            options: Record<string, unknown>,
+          ) => {
+            attachRenderMirror(element: HTMLElement): { destroy(): void };
+            destroy(): void;
+            getScrollState(): { readonly scrollHeight: number };
+          };
+        };
+      }
+    ).__SCRIBEFRAME_TEST_API__ ?? {};
+    if (!PluginId || !ScribeFrame) {
+      throw new Error("Scribeframe browser test API is unavailable");
+    }
+    const measure = (scale: number): number => {
+      const host = document.createElement("div");
+      host.style.height = "40px";
+      host.style.overflow = "auto";
+      const mirrorHost = document.createElement("div");
+      mirrorHost.style.transform = `scale(${scale})`;
+      mirrorHost.style.transformOrigin = "top left";
+      document.body.append(host, mirrorHost);
+
+      const plugin = {
+        id: new PluginId(`scaled-mirror-widget-${scale}`),
+        init: () => null,
+        apply: () => null,
+        widgets: (
+          { doc }: { doc: { paragraphs: readonly { text: string }[] } },
+        ) => [{
+          key: "scaled-mirror-widget:ten",
+          placement: "block" as const,
+          range: {
+            from: { paragraph: 10, offset: 0 },
+            to: { paragraph: 10, offset: doc.paragraphs[10]?.text.length ?? 0 },
+          },
+          props: {},
+          render: {
+            mount(widgetHost: HTMLElement) {
+              const element = document.createElement("div");
+              element.style.height = "100px";
+              widgetHost.replaceChildren(element);
+              return {
+                update() {},
+                destroy() {
+                  widgetHost.replaceChildren();
+                },
+              };
+            },
+          },
+          selection: "block" as const,
+        }],
+      };
+      const editor = new ScribeFrame(host, {
+        content: Array.from(
+          { length: 20 },
+          (_, index) => `line ${index}`,
+        ).join("\n"),
+        plugins: [plugin],
+        virtualization: { estimateParagraphHeight: 20, overscan: 0 },
+      });
+      const mirror = editor.attachRenderMirror(mirrorHost);
+      const result = editor.getScrollState().scrollHeight;
+
+      mirror.destroy();
+      editor.destroy();
+      host.remove();
+      mirrorHost.remove();
+      return result;
+    };
+
+    return {
+      unscaled: measure(1),
+      scaled: measure(0.25),
+    };
+  });
+
+  expect(scrollHeights.scaled).toBe(scrollHeights.unscaled);
+  expect(scrollHeights.scaled).toBeGreaterThan(700);
+});
+
 test("typing, undo, and redo run through real keyboard events", async ({ page }) => {
   await page.locator(focusButton).click();
 
