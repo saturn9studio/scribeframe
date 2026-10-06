@@ -23,12 +23,21 @@ code outside the core package source, not hardcoded into the runtime.
 7. **Renderer**: virtualized DOM output, virtual caret, selection painting,
    scrolling geometry, widget mount/update/destroy, and CSS-variable driven
    visual defaults. An editor can attach inert, non-virtualized render mirrors
-   that consume the same document, decorations, widgets, and widget renderers
-   without creating a second editor or syntax pipeline. Renderer instances share
-   paragraph and block-widget measurements, and resize observation feeds
-   asynchronously changing mirror geometry back into the virtualized primary
-   renderer. Paragraph minimum height defaults to one computed line box so
-   empty-paragraph geometry follows host-configured typography.
+   without creating a second editor or syntax pipeline. Mirror decorations and
+   widgets are derived from a read-only snapshot so output props match the
+   surface contract, while both surfaces consume the same document, selection,
+   syntax snapshot, plugin state, and widget renderer implementations. Renderer
+   instances share primary and fallback paragraph and block-widget measurements,
+   and resize observation feeds asynchronously changing mirror geometry back
+   into the virtualized primary renderer. Mounted primary measurements remain
+   authoritative; mirror measurements provide geometry only while the
+   corresponding primary content is virtualized and unmeasured. Each mirror
+   owns its measurement set; the editor rebuilds shared fallback geometry from
+   active mirrors after measurement, attachment, destruction, and document
+   replacement. Intentionally different read-only output therefore cannot leave
+   stale geometry behind or delete editable-surface measurements. Paragraph minimum height defaults to one
+   computed line box so empty-paragraph geometry follows host-configured
+   typography.
 8. **Input manager**: focus-proxy textarea, keyboard editing, clipboard, and
    pointer-to-position mapping.
 9. **Example integrations**: demo code can provide syntax providers, projections,
@@ -128,6 +137,12 @@ Virtualized reveals first use document layout geometry, which includes measured
 paragraphs and block widgets. After an offscreen same-paragraph text selection is
 materialized, the renderer refines the reveal with measured text rects so
 navigation targets are fully visible without replacing widget-aware layout.
+Render mirrors normalize measured heights by their host CSS transform scale
+before contributing complete-document measurements to the shared layout cache.
+Normalized viewport state (`documentTopFraction` and `viewportFraction`),
+viewport subscriptions, and document-position-to-centered-scroll conversion
+are renderer APIs. Host tools can render scaled navigation UI without reading
+or reconstructing editor scroll metrics.
 Ordinary renders preserve a visible viewport anchor across DOM replacement and
 height remeasurement, preferring a focused widget when one owns focus and
 otherwise using the first visible widget or paragraph. Explicit reveal APIs are
@@ -140,6 +155,10 @@ Widgets are immutable render descriptions keyed by plugin-scoped `WidgetKey`s.
 The renderer owns host elements and calls `mount`, `update`, and `destroy`.
 Consumers should not keep global DOM registries or query the document to recover
 existing widget roots.
+The same widget key may be mounted concurrently in the primary renderer and one
+or more render mirrors. Each mount is an independent lifecycle instance;
+renderers must keep DOM references, listeners, subscriptions, and mutable state
+inside the returned handle rather than treating a key as a global singleton.
 Widget handles may expose `focus()` to receive keyboard focus when users tab to
 the widget host or move the editor selection into a non-inline widget range. The
 core only routes focus; widget renderers decide which internal control receives
@@ -191,8 +210,10 @@ callers reuse the same key object.
 The renderer owns explicit scrolling APIs. Host apps can ask the editor to
 reveal a document position, reveal the current selected span, select a range
 with optional reveal behavior, or scroll to a document fraction for
-minimap-style tools. Geometry is expressed in terms of explicit engine
-`Position` and `Range` values.
+minimap-style tools. The engine also exposes normalized viewport state and a
+center-on-document-fraction operation so scaled mirrors do not duplicate
+scroll-height/client-height conversion. Geometry is expressed in terms of
+explicit engine `Position` and `Range` values.
 
 Rendering is virtualized when the scroll container has a measurable viewport.
 The renderer keeps a visible paragraph window with configurable overscan and

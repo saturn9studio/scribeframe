@@ -183,6 +183,8 @@ export interface RendererScrollState {
   readonly scrollHeight: number;
   readonly clientHeight: number;
   readonly fraction: number;
+  readonly documentTopFraction: number;
+  readonly viewportFraction: number;
 }
 
 export interface RendererOptions {
@@ -190,17 +192,49 @@ export interface RendererOptions {
   readonly virtualization?: RendererVirtualizationOptions | false;
   readonly measurements?: RendererMeasurements;
   readonly onMeasurementsChange?: () => void;
+  readonly measurementRole?: "primary" | "fallback";
 }
 
 export interface RendererMeasurements {
   readonly paragraphHeights: Map<number, number>;
   readonly blockWidgetHeights: Map<WidgetKey, number>;
+  readonly fallbackParagraphHeights?: Map<number, number>;
+  readonly fallbackBlockWidgetHeights?: Map<WidgetKey, number>;
 }
 
-export const createRendererMeasurements = (): RendererMeasurements => ({
+interface ResolvedRendererMeasurements extends RendererMeasurements {
+  readonly fallbackParagraphHeights: Map<number, number>;
+  readonly fallbackBlockWidgetHeights: Map<WidgetKey, number>;
+}
+
+export const createRendererMeasurements = (): ResolvedRendererMeasurements => ({
   paragraphHeights: new Map(),
   blockWidgetHeights: new Map(),
+  fallbackParagraphHeights: new Map(),
+  fallbackBlockWidgetHeights: new Map(),
 });
+
+const transformScaleY = (element: HTMLElement): number => {
+  const transform = getComputedStyle(element).transform;
+  if (!transform || transform === "none") return 1;
+
+  const values = transform.slice(transform.indexOf("(") + 1, -1)
+    .match(/-?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?/giu)
+    ?.map(Number) ?? [];
+  if (transform.startsWith("matrix3d(") && values.length === 16) {
+    return Math.hypot(values[4], values[5], values[6]) || 1;
+  }
+  if (transform.startsWith("matrix(") && values.length === 6) {
+    return Math.hypot(values[2], values[3]) || 1;
+  }
+  if (transform.startsWith("scaleY(") && values.length >= 1) {
+    return Math.abs(values[0]) || 1;
+  }
+  if (transform.startsWith("scale(") && values.length >= 1) {
+    return Math.abs(values[1] ?? values[0]) || 1;
+  }
+  return 1;
+};
 
 export interface RendererInput {
   readonly doc: EditorDocument;
@@ -506,7 +540,8 @@ export class Renderer {
   private readonly selectionLayer: HTMLElement;
   private readonly scrollContainer: HTMLElement;
   private readonly virtualization: Required<RendererVirtualizationOptions>;
-  private readonly measurements: RendererMeasurements;
+  private readonly measurementRole: "primary" | "fallback";
+  private readonly measurements: ResolvedRendererMeasurements;
   private readonly resizeObserver: ResizeObserver | null;
   private readonly segments: TextSegment[] = [];
   private readonly widgets = new Map<WidgetKey, WidgetRecord>();
@@ -520,10 +555,15 @@ export class Renderer {
     afterHeight: 0,
     virtualized: false,
   };
+  private readonly scrollStateListeners = new Set<
+    (state: RendererScrollState) => void
+  >();
 
   private readonly handleScroll = (): void => {
-    if (!this.currentInput || !this.currentWindow.virtualized) return;
-    this.render(this.currentInput);
+    if (this.currentInput && this.currentWindow.virtualized) {
+      this.render(this.currentInput);
+    }
+    this.emitScrollState();
   };
 
   constructor(
@@ -546,8 +586,16 @@ export class Renderer {
           ? 36
           : (options.virtualization?.estimateParagraphHeight ?? 36),
     };
-    this.measurements =
-      options.measurements ?? createRendererMeasurements();
+    const measurements = options.measurements ?? createRendererMeasurements();
+    this.measurements = {
+      paragraphHeights: measurements.paragraphHeights,
+      blockWidgetHeights: measurements.blockWidgetHeights,
+      fallbackParagraphHeights:
+        measurements.fallbackParagraphHeights ?? new Map(),
+      fallbackBlockWidgetHeights:
+        measurements.fallbackBlockWidgetHeights ?? new Map(),
+    };
+    this.measurementRole = options.measurementRole ?? "primary";
     this.surface = document.createElement("div");
     this.surface.className = "s9-editor-surface";
     this.selectionLayer = document.createElement("div");
@@ -567,6 +615,7 @@ export class Renderer {
             ) {
               options.onMeasurementsChange?.();
             }
+            this.emitScrollState();
           });
     this.resizeObserver?.observe(this.surface);
     this.scrollContainer.addEventListener("scroll", this.handleScroll, {
@@ -757,6 +806,7 @@ export class Renderer {
     this.currentIndex = null;
     this.segments.length = 0;
     this.currentInput = null;
+    this.scrollStateListeners.clear();
     this.root.replaceChildren();
     this.root.classList.remove("s9-editor");
   }
@@ -816,7 +866,17 @@ export class Renderer {
       scrollHeight,
       clientHeight,
       fraction: maxScrollTop === 0 ? 0 : scrollTop / maxScrollTop,
+      documentTopFraction: scrollHeight === 0 ? 0 : scrollTop / scrollHeight,
+      viewportFraction: scrollHeight === 0 ? 1 : clientHeight / scrollHeight,
     };
+  }
+
+  subscribeScrollState(
+    listener: (state: RendererScrollState) => void,
+  ): () => void {
+    this.scrollStateListeners.add(listener);
+    listener(this.getScrollState());
+    return () => this.scrollStateListeners.delete(listener);
   }
 
   scrollToFraction(fraction: number): void {
@@ -824,6 +884,13 @@ export class Renderer {
     const clientHeight = this.scrollContainer.clientHeight;
     const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
     this.setScrollTop(Math.max(0, Math.min(1, fraction)) * maxScrollTop);
+  }
+
+  scrollViewportCenterToDocumentFraction(fraction: number): void {
+    const scrollHeight = this.scrollHeight();
+    const clientHeight = this.scrollContainer.clientHeight;
+    const documentY = Math.max(0, Math.min(1, fraction)) * scrollHeight;
+    this.setScrollTop(documentY - clientHeight / 2);
   }
 
   revealPosition(position: Position, options: RendererRevealOptions = {}): void {
@@ -1108,6 +1175,13 @@ export class Renderer {
 
   private measureRenderedHeights(index: RenderIndex): boolean {
     let changed = false;
+    const scaleY = transformScaleY(this.root);
+    const paragraphHeights = this.measurementRole === "primary"
+      ? this.measurements.paragraphHeights
+      : this.measurements.fallbackParagraphHeights;
+    const blockWidgetHeights = this.measurementRole === "primary"
+      ? this.measurements.blockWidgetHeights
+      : this.measurements.fallbackBlockWidgetHeights;
     this.surface
       .querySelectorAll<HTMLElement>(".s9-paragraph[data-paragraph]")
       .forEach((paragraphElement) => {
@@ -1117,12 +1191,11 @@ export class Renderer {
           const style = getComputedStyle(paragraphElement);
           const marginTop = Number.parseFloat(style.marginTop) || 0;
           const marginBottom = Number.parseFloat(style.marginBottom) || 0;
-          const layoutHeight = rect.height + marginTop + marginBottom;
+          const layoutHeight = rect.height / scaleY + marginTop + marginBottom;
           if (
-            this.measurements.paragraphHeights.get(paragraphIndex) !==
-            layoutHeight
+            paragraphHeights.get(paragraphIndex) !== layoutHeight
           ) {
-            this.measurements.paragraphHeights.set(paragraphIndex, layoutHeight);
+            paragraphHeights.set(paragraphIndex, layoutHeight);
             changed = true;
           }
         }
@@ -1134,8 +1207,9 @@ export class Renderer {
         const key = widgetElement.dataset.widgetKey as WidgetKey | undefined;
         const rect = widgetElement.getBoundingClientRect();
         if (key && rect.height > 0) {
-          if (this.measurements.blockWidgetHeights.get(key) !== rect.height) {
-            this.measurements.blockWidgetHeights.set(key, rect.height);
+          const layoutHeight = rect.height / scaleY;
+          if (blockWidgetHeights.get(key) !== layoutHeight) {
+            blockWidgetHeights.set(key, layoutHeight);
             changed = true;
           }
         }
@@ -1146,9 +1220,9 @@ export class Renderer {
         .flat()
         .map((widget) => widget.key),
     );
-    this.measurements.blockWidgetHeights.forEach((_height, key) => {
+    blockWidgetHeights.forEach((_height, key) => {
       if (!currentKeys.has(key)) {
-        this.measurements.blockWidgetHeights.delete(key);
+        blockWidgetHeights.delete(key);
         changed = true;
       }
     });
@@ -1158,6 +1232,7 @@ export class Renderer {
   private paragraphHeight(paragraphIndex: number): number {
     return (
       this.measurements.paragraphHeights.get(paragraphIndex) ??
+      this.measurements.fallbackParagraphHeights.get(paragraphIndex) ??
       this.virtualization.estimateParagraphHeight
     );
   }
@@ -1175,6 +1250,7 @@ export class Renderer {
       (total, widget) =>
         total +
         (this.measurements.blockWidgetHeights.get(widget.key) ??
+          this.measurements.fallbackBlockWidgetHeights.get(widget.key) ??
           this.blockWidgetFallbackHeight(index, widget)),
       0,
     );
@@ -1230,6 +1306,13 @@ export class Renderer {
     );
     this.scrollContainer.scrollTop = Math.max(0, Math.min(scrollTop, maxScrollTop));
     this.renderAfterScrollChange();
+    this.emitScrollState();
+  }
+
+  private emitScrollState(): void {
+    if (this.scrollStateListeners.size === 0) return;
+    const state = this.getScrollState();
+    this.scrollStateListeners.forEach((listener) => listener(state));
   }
 
   private renderAfterScrollChange(): void {

@@ -90,7 +90,12 @@ receives the `s9-editor-root` and `s9-editor-mirror` classes so integrations can
 apply the same typography, width, theme variables, and renderer styles as the
 primary editor. Mirrors share measured paragraph and block-widget heights with
 the primary renderer, including resize-driven updates, so virtual scroll
-geometry can use complete-document measurements.
+geometry can use complete-document measurements. Measurements are normalized by
+the mirror host's CSS transform scale before entering the shared cache, so a
+scaled overview cannot corrupt primary-editor virtualization geometry. Plugin
+decorations and widgets are recomputed from a read-only snapshot for the mirror,
+so props derived from `context.readOnly` describe the surface on which they
+render.
 
 ### Scrolling and virtualization options
 
@@ -333,6 +338,9 @@ const renderer: WidgetRenderer<{ readonly label: string }> = {
 `replaceContent`, `deleteSelf`, and `focusEditor`. `replaceSelf` and
 `replaceContent` merge repeated edits from the same widget by default; pass
 `{ history: "boundary" }` for a structural edit that should undo separately.
+An attached render mirror mounts a separate widget instance with the same key.
+Renderers must therefore keep DOM, listeners, subscriptions, and mutable state
+inside each returned handle rather than using the key as a global singleton.
 `WidgetHandle.focus()` is optional. When present, Scribeframe makes the widget
 host keyboard focusable and calls `focus()` when users tab to the widget host or
 move the editor selection into a non-inline widget range.

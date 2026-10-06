@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  EditorPlugin,
-  ScribeFrame,
+  type EditorPlugin,
+  type EditorScrollState,
   PluginId,
-  WidgetDecoration,
-  WidgetRenderer,
+  ScribeFrame,
+  type WidgetDecoration,
+  type WidgetRenderer,
 } from "../src";
 import { markdownPlugin, markdownSyntaxProvider } from "../demo/src/markdown";
 
@@ -209,6 +210,8 @@ describe("renderer virtualization and scrolling", () => {
       scrollHeight: 400,
       clientHeight: 100,
       fraction: 0,
+      documentTopFraction: 0,
+      viewportFraction: 0.25,
     });
 
     editor.scrollToFraction(0.5);
@@ -216,6 +219,37 @@ describe("renderer virtualization and scrolling", () => {
     expect(container.scrollTop).toBe(150);
     expect(editor.getScrollState().fraction).toBe(0.5);
 
+    editor.destroy();
+    container.remove();
+  });
+
+  it("owns normalized viewport state and document-center scrolling", () => {
+    const container = document.createElement("div");
+    setViewport(container, 100);
+    document.body.append(container);
+    const editor = new ScribeFrame(container, {
+      content: lines(20),
+      syntaxProvider: markdownSyntaxProvider,
+      plugins: [markdownPlugin()],
+      virtualization: { estimateParagraphHeight: 20, overscan: 0 },
+    });
+    const states: EditorScrollState[] = [];
+    const unsubscribe = editor.subscribeScrollState((state) => {
+      states.push(state);
+    });
+
+    editor.scrollViewportCenterToDocumentFraction(0.5);
+
+    expect(container.scrollTop).toBe(150);
+    expect(states.at(-1)).toMatchObject({
+      documentTopFraction: 0.375,
+      viewportFraction: 0.25,
+      fraction: 0.5,
+    });
+
+    unsubscribe();
+    editor.scrollToFraction(1);
+    expect(states).toHaveLength(2);
     editor.destroy();
     container.remove();
   });
