@@ -136,11 +136,17 @@ const focusableViewportWidgetPlugin = (counts: Counts): EditorPlugin<null> => {
 const tallViewportWidgetPlugin = (
   counts: Counts,
   height: number,
+  margins: { readonly top: number; readonly bottom: number } = {
+    top: 0,
+    bottom: 0,
+  },
 ): EditorPlugin<null> => {
   const renderer: WidgetRenderer<{ readonly label: string }> = {
     mount(host, props) {
       counts.mounts += 1;
       host.textContent = props.label;
+      host.style.marginTop = `${margins.top}px`;
+      host.style.marginBottom = `${margins.bottom}px`;
       host.getBoundingClientRect = () =>
         ({
           left: 0,
@@ -563,6 +569,28 @@ describe("renderer virtualization and scrolling", () => {
       container.querySelector<HTMLElement>(".s9-virtual-spacer-before")?.style
         .height,
     ).toBe("300px");
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("includes block widget margins in virtual scroll geometry", () => {
+    const container = document.createElement("div");
+    setViewport(container, 40);
+    document.body.append(container);
+    const counts = { mounts: 0, updates: 0, destroys: 0 };
+
+    const editor = new ScribeFrame(container, {
+      content: lines(20),
+      plugins: [
+        tallViewportWidgetPlugin(counts, 100, { top: 20, bottom: 30 }),
+      ],
+      virtualization: { estimateParagraphHeight: 20, overscan: 0 },
+    });
+
+    editor.revealPosition({ paragraph: 10, offset: 0 }, { block: "start" });
+
+    expect(editor.getScrollState().scrollHeight).toBe(530);
 
     editor.destroy();
     container.remove();

@@ -627,6 +627,12 @@ export class ScribeFrame {
     const contentAfter = changesText
       ? applyDisplayChanges(this.content, transaction.displayChanges)
       : this.content;
+    if (changesText) {
+      this.invalidateRendererParagraphMeasurements(
+        transaction.docBefore,
+        transaction.docAfter,
+      );
+    }
     this.doc = transaction.docAfter;
     this.content = contentAfter;
     this.selection = clampSelection(this.doc, transaction.selectionAfter);
@@ -1435,6 +1441,42 @@ export class ScribeFrame {
     });
   }
 
+  private invalidateRendererParagraphMeasurements(
+    before: EditorDocument,
+    after: EditorDocument,
+  ): void {
+    const maps = [
+      this.rendererMeasurements.paragraphHeights,
+      this.rendererMeasurements.fallbackParagraphHeights,
+      ...[...this.renderMirrors].flatMap((mirror) => [
+        mirror.measurements.paragraphHeights,
+        mirror.measurements.fallbackParagraphHeights,
+      ]),
+    ];
+
+    if (before.paragraphs.length === after.paragraphs.length) {
+      before.paragraphs.forEach((paragraph, index) => {
+        if (paragraph === after.paragraphs[index]) return;
+        maps.forEach((measurements) => measurements.delete(index));
+      });
+      return;
+    }
+
+    let unchangedPrefix = 0;
+    while (
+      unchangedPrefix < before.paragraphs.length &&
+      unchangedPrefix < after.paragraphs.length &&
+      before.paragraphs[unchangedPrefix] === after.paragraphs[unchangedPrefix]
+    ) {
+      unchangedPrefix += 1;
+    }
+    maps.forEach((measurements) => {
+      measurements.forEach((_height, index) => {
+        if (index >= unchangedPrefix) measurements.delete(index);
+      });
+    });
+  }
+
   private collectOutput(snapshot: EditorStateSnapshot = this.snapshot()): RenderOutput {
     return this.slots.reduce<RenderOutput>(
       (combined, slot) => {
@@ -1471,6 +1513,7 @@ export class ScribeFrame {
     snapshot: HistorySnapshot,
     transaction: Transaction,
   ): void {
+    this.invalidateRendererParagraphMeasurements(this.doc, snapshot.doc);
     this.doc = snapshot.doc;
     this.content = snapshot.content;
     this.selection = clampSelection(this.doc, snapshot.selection);

@@ -68,14 +68,17 @@ test("scaled render mirrors preserve primary virtualization geometry", async ({
     if (!PluginId || !ScribeFrame) {
       throw new Error("Scribeframe browser test API is unavailable");
     }
-    const measure = (scale: number): number => {
+    const measure = (scale: number, scaleAncestor = false): number => {
       const host = document.createElement("div");
       host.style.height = "40px";
       host.style.overflow = "auto";
+      const mirrorWrapper = document.createElement("div");
       const mirrorHost = document.createElement("div");
-      mirrorHost.style.transform = `scale(${scale})`;
-      mirrorHost.style.transformOrigin = "top left";
-      document.body.append(host, mirrorHost);
+      const scaledElement = scaleAncestor ? mirrorWrapper : mirrorHost;
+      scaledElement.style.transform = `scale(${scale})`;
+      scaledElement.style.transformOrigin = "top left";
+      mirrorWrapper.append(mirrorHost);
+      document.body.append(host, mirrorWrapper);
 
       const plugin = {
         id: new PluginId(`scaled-mirror-widget-${scale}`),
@@ -121,17 +124,19 @@ test("scaled render mirrors preserve primary virtualization geometry", async ({
       mirror.destroy();
       editor.destroy();
       host.remove();
-      mirrorHost.remove();
+      mirrorWrapper.remove();
       return result;
     };
 
     return {
       unscaled: measure(1),
       scaled: measure(0.25),
+      ancestorScaled: measure(0.25, true),
     };
   });
 
   expect(scrollHeights.scaled).toBe(scrollHeights.unscaled);
+  expect(scrollHeights.ancestorScaled).toBe(scrollHeights.unscaled);
   expect(scrollHeights.scaled).toBeGreaterThan(700);
 });
 
@@ -399,6 +404,381 @@ test("paragraph minimum height follows configured line height", async ({ page })
 
   expect(metrics.lineHeight).toBeCloseTo(26, 1);
   expect(metrics.minHeight).toBeCloseTo(metrics.lineHeight, 1);
+});
+
+test("vertical movement does not skip empty paragraphs after tall line boxes", async ({
+  page,
+}) => {
+  const modulePath =
+    `/@fs/${resolve("src/index.ts").replace(/\\/gu, "/")}`;
+  await page.addScriptTag({
+    type: "module",
+    content: `
+      import { PluginId, ScribeFrame } from ${JSON.stringify(modulePath)};
+      const host = document.createElement("div");
+      const style = document.createElement("style");
+      style.textContent =
+        ".browser-test-tall-line { font-size: 32px; line-height: 4; }";
+      document.head.append(style);
+      document.body.replaceChildren(host);
+      const editor = new ScribeFrame(host, {
+        content: "Large line\\n\\nBody",
+        plugins: [{
+          id: new PluginId("browser-test-tall-line"),
+          init: () => null,
+          apply: () => null,
+          decorations: () => [{
+            kind: "block",
+            paragraph: 0,
+            attrs: { class: "browser-test-tall-line" },
+          }],
+        }],
+      });
+      editor.selectRange({
+        from: { paragraph: 0, offset: 10 },
+        to: { paragraph: 0, offset: 10 },
+      });
+      editor.focus();
+      window.browserTestEditor = editor;
+      window.browserTestEditorReady = true;
+    `,
+  });
+  await page.waitForFunction("window.browserTestEditorReady === true");
+
+  await page.keyboard.press("ArrowDown");
+
+  expect(
+    await page.evaluate("window.browserTestEditor.getSelection()"),
+  ).toEqual({
+    anchor: { paragraph: 1, offset: 0 },
+    head: { paragraph: 1, offset: 0 },
+  });
+});
+
+test("vertical movement enters the edge line of adjacent wrapped paragraphs", async ({
+  page,
+}) => {
+  const modulePath =
+    `/@fs/${resolve("src/index.ts").replace(/\\/gu, "/")}`;
+  await page.addScriptTag({
+    type: "module",
+    content: `
+      import { PluginId, ScribeFrame } from ${JSON.stringify(modulePath)};
+      const host = document.createElement("div");
+      host.style.width = "300px";
+      const style = document.createElement("style");
+      style.textContent =
+        ".browser-test-tall-line { font-size: 32px; line-height: 4; }";
+      document.head.append(style);
+      document.body.replaceChildren(host);
+      const editor = new ScribeFrame(host, {
+        content:
+          "Large line\\n" +
+          "This adjacent paragraph wraps across several visual lines in the narrow editor.",
+        plugins: [{
+          id: new PluginId("browser-test-tall-wrapped-line"),
+          init: () => null,
+          apply: () => null,
+          decorations: () => [{
+            kind: "block",
+            paragraph: 0,
+            attrs: { class: "browser-test-tall-line" },
+          }],
+        }],
+        virtualization: false,
+      });
+      editor.selectRange({
+        from: { paragraph: 0, offset: 10 },
+        to: { paragraph: 0, offset: 10 },
+      });
+      editor.focus();
+      window.browserTestEditor = editor;
+      window.browserTestEditorHost = host;
+      window.browserTestEditorReady = true;
+    `,
+  });
+  await page.waitForFunction("window.browserTestEditorReady === true");
+
+  await page.keyboard.press("ArrowDown");
+
+  const geometry = await page.evaluate(() => {
+    const host = window.browserTestEditorHost;
+    const paragraph = host.querySelector<HTMLElement>(
+      ".s9-paragraph[data-paragraph='1']",
+    );
+    const caret = host.querySelector<HTMLElement>(".s9-caret");
+    if (!paragraph || !caret) throw new Error("Caret geometry unavailable");
+    const paragraphRect = paragraph.getBoundingClientRect();
+    const caretRect = caret.getBoundingClientRect();
+    const lineHeight = Number.parseFloat(getComputedStyle(paragraph).lineHeight);
+    return {
+      caretTop: caretRect.top,
+      lineHeight,
+      paragraphHeight: paragraphRect.height,
+      paragraphTop: paragraphRect.top,
+    };
+  });
+
+  expect(geometry.paragraphHeight).toBeGreaterThan(geometry.lineHeight * 1.5);
+  expect(geometry.caretTop - geometry.paragraphTop).toBeLessThan(
+    geometry.lineHeight / 2,
+  );
+});
+
+test("upward movement enters the last line of an adjacent wrapped paragraph", async ({
+  page,
+}) => {
+  const modulePath =
+    `/@fs/${resolve("src/index.ts").replace(/\\/gu, "/")}`;
+  await page.addScriptTag({
+    type: "module",
+    content: `
+      import { PluginId, ScribeFrame } from ${JSON.stringify(modulePath)};
+      const host = document.createElement("div");
+      host.style.width = "300px";
+      const style = document.createElement("style");
+      style.textContent =
+        ".browser-test-tall-line { font-size: 32px; line-height: 4; }";
+      document.head.append(style);
+      document.body.replaceChildren(host);
+      const editor = new ScribeFrame(host, {
+        content:
+          "This adjacent paragraph wraps across several visual lines in the narrow editor.\\n" +
+          "Large line",
+        plugins: [{
+          id: new PluginId("browser-test-upward-tall-wrapped-line"),
+          init: () => null,
+          apply: () => null,
+          decorations: () => [{
+            kind: "block",
+            paragraph: 1,
+            attrs: { class: "browser-test-tall-line" },
+          }],
+        }],
+        virtualization: false,
+      });
+      editor.selectRange({
+        from: { paragraph: 1, offset: 10 },
+        to: { paragraph: 1, offset: 10 },
+      });
+      editor.focus();
+      window.browserTestEditor = editor;
+      window.browserTestEditorHost = host;
+      window.browserTestEditorReady = true;
+    `,
+  });
+  await page.waitForFunction("window.browserTestEditorReady === true");
+
+  await page.keyboard.press("ArrowUp");
+
+  const geometry = await page.evaluate(() => {
+    const host = window.browserTestEditorHost;
+    const paragraph = host.querySelector<HTMLElement>(
+      ".s9-paragraph[data-paragraph='0']",
+    );
+    const caret = host.querySelector<HTMLElement>(".s9-caret");
+    if (!paragraph || !caret) throw new Error("Caret geometry unavailable");
+    const paragraphRect = paragraph.getBoundingClientRect();
+    const caretRect = caret.getBoundingClientRect();
+    const lineHeight = Number.parseFloat(getComputedStyle(paragraph).lineHeight);
+    return {
+      caretTop: caretRect.top,
+      lineHeight,
+      paragraphBottom: paragraphRect.bottom,
+      paragraphHeight: paragraphRect.height,
+      paragraphTop: paragraphRect.top,
+    };
+  });
+
+  expect(geometry.paragraphHeight).toBeGreaterThan(geometry.lineHeight * 1.5);
+  expect(geometry.caretTop - geometry.paragraphTop).toBeGreaterThan(
+    geometry.paragraphHeight - geometry.lineHeight * 1.5,
+  );
+  expect(geometry.caretTop).toBeLessThan(geometry.paragraphBottom);
+});
+
+test("structural edits invalidate shifted virtual paragraph measurements", async ({
+  page,
+}) => {
+  const modulePath =
+    `/@fs/${resolve("src/index.ts").replace(/\\/gu, "/")}`;
+  await page.addScriptTag({
+    type: "module",
+    content: `
+      import { PluginId, ScribeFrame } from ${JSON.stringify(modulePath)};
+      const host = document.createElement("div");
+      host.style.height = "80px";
+      const style = document.createElement("style");
+      style.textContent = ".browser-test-tall-paragraph { font-size: 40px; line-height: 3; }";
+      document.head.append(style);
+      document.body.replaceChildren(host);
+      const content = Array.from(
+        { length: 30 },
+        (_, index) => index === 20 ? "TALL" : \`line \${index}\`,
+      ).join("\\n");
+      const plugin = {
+        id: new PluginId("browser-test-tall-paragraph"),
+        init: () => null,
+        apply: () => null,
+        decorations: ({ doc }) => doc.paragraphs.flatMap((paragraph, index) =>
+          paragraph.text === "TALL"
+            ? [{
+                kind: "block",
+                paragraph: index,
+                attrs: { class: "browser-test-tall-paragraph" },
+              }]
+            : []
+        ),
+      };
+      const editor = new ScribeFrame(host, {
+        content,
+        plugins: [plugin],
+        virtualization: { estimateParagraphHeight: 20, overscan: 0 },
+      });
+      editor.revealPosition({ paragraph: 20, offset: 0 }, { block: "start" });
+      editor.scrollToFraction(0);
+      editor.selectRange({
+        from: { paragraph: 0, offset: 0 },
+        to: { paragraph: 0, offset: 0 },
+      });
+      editor.insertText("new\\n");
+      editor.revealPosition({ paragraph: 21, offset: 0 }, { block: "start" });
+
+      const referenceHost = document.createElement("div");
+      referenceHost.style.height = "80px";
+      document.body.append(referenceHost);
+      const referenceEditor = new ScribeFrame(referenceHost, {
+        content: \`new\\n\${content}\`,
+        plugins: [plugin],
+        virtualization: { estimateParagraphHeight: 20, overscan: 0 },
+      });
+      referenceEditor.revealPosition(
+        { paragraph: 21, offset: 0 },
+        { block: "start" },
+      );
+      window.browserTestScrollTops = {
+        edited: host.scrollTop,
+        fresh: referenceHost.scrollTop,
+      };
+      window.browserTestEditorReady = true;
+    `,
+  });
+  await page.waitForFunction("window.browserTestEditorReady === true");
+
+  const scrollTops = await page.evaluate(
+    () => window.browserTestScrollTops,
+  );
+
+  expect(scrollTops.edited).toBeCloseTo(scrollTops.fresh, 0);
+});
+
+test("multi-paragraph reveals account for external scroll-container offsets", async ({
+  page,
+}) => {
+  const modulePath =
+    `/@fs/${resolve("src/index.ts").replace(/\\/gu, "/")}`;
+  await page.addScriptTag({
+    type: "module",
+    content: `
+      import { ScribeFrame } from ${JSON.stringify(modulePath)};
+      const scroll = document.createElement("div");
+      scroll.style.height = "80px";
+      scroll.style.overflow = "auto";
+      const header = document.createElement("div");
+      header.style.height = "100px";
+      const host = document.createElement("div");
+      host.style.height = "auto";
+      host.style.minHeight = "0";
+      scroll.append(header, host);
+      document.body.replaceChildren(scroll);
+      const editor = new ScribeFrame(host, {
+        content: Array.from(
+          { length: 30 },
+          (_, index) => \`line \${index}\`,
+        ).join("\\n"),
+        scrollContainer: scroll,
+        virtualization: { estimateParagraphHeight: 20, overscan: 0 },
+      });
+      editor.selectRange(
+        {
+          from: { paragraph: 10, offset: 0 },
+          to: { paragraph: 12, offset: 4 },
+        },
+        { reveal: true, block: "start" },
+      );
+      window.browserTestEditorHost = host;
+      window.browserTestScrollContainer = scroll;
+      window.browserTestEditorReady = true;
+    `,
+  });
+  await page.waitForFunction("window.browserTestEditorReady === true");
+
+  const viewportTop = await page.evaluate(() => {
+    const host = window.browserTestEditorHost;
+    const scroll = window.browserTestScrollContainer;
+    const paragraph = host.querySelector("[data-paragraph='10']");
+    if (!(paragraph instanceof HTMLElement)) {
+      throw new Error("Target paragraph is not rendered");
+    }
+    return paragraph.getBoundingClientRect().top -
+      scroll.getBoundingClientRect().top;
+  });
+
+  expect(Math.abs(viewportTop)).toBeLessThan(5);
+});
+
+test("Home and End respect right-to-left visual line boundaries", async ({
+  page,
+}) => {
+  const modulePath =
+    `/@fs/${resolve("src/index.ts").replace(/\\/gu, "/")}`;
+  await page.addScriptTag({
+    type: "module",
+    content: `
+      import { PluginId, ScribeFrame } from ${JSON.stringify(modulePath)};
+      const host = document.createElement("div");
+      const style = document.createElement("style");
+      style.textContent = ".browser-test-rtl { direction: rtl; }";
+      document.head.append(style);
+      document.body.replaceChildren(host);
+      const editor = new ScribeFrame(host, {
+        content: "אבגדה",
+        plugins: [{
+          id: new PluginId("browser-test-rtl"),
+          init: () => null,
+          apply: () => null,
+          decorations: () => [{
+            kind: "block",
+            paragraph: 0,
+            attrs: { class: "browser-test-rtl" },
+          }],
+        }],
+        virtualization: false,
+      });
+      editor.selectRange({
+        from: { paragraph: 0, offset: 2 },
+        to: { paragraph: 0, offset: 2 },
+      });
+      editor.focus();
+      window.browserTestEditor = editor;
+      window.browserTestEditorReady = true;
+    `,
+  });
+  await page.waitForFunction("window.browserTestEditorReady === true");
+
+  await page.keyboard.press("Home");
+  expect(
+    await page.evaluate("window.browserTestEditor.getSelection().head.offset"),
+  ).toBe(0);
+
+  await page.evaluate(() => window.browserTestEditor.selectRange({
+    from: { paragraph: 0, offset: 2 },
+    to: { paragraph: 0, offset: 2 },
+  }));
+  await page.keyboard.press("End");
+  expect(
+    await page.evaluate("window.browserTestEditor.getSelection().head.offset"),
+  ).toBe(5);
 });
 
 test("code block widget edits update document text", async ({ page }) => {

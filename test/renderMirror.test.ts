@@ -403,6 +403,45 @@ describe("read-only render mirrors", () => {
     mirrorElement.remove();
   });
 
+  it("normalizes mirror measurements using effective ancestor scale", () => {
+    const container = document.createElement("div");
+    const mirrorWrapper = document.createElement("div");
+    const mirrorElement = document.createElement("div");
+    mirrorWrapper.append(mirrorElement);
+    Object.defineProperty(mirrorElement, "offsetHeight", {
+      configurable: true,
+      value: 400,
+    });
+    mirrorElement.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        top: 0,
+        right: 100,
+        bottom: 100,
+        width: 100,
+        height: 100,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    setViewport(container, 40);
+    document.body.append(container, mirrorWrapper);
+    const editor = new ScribeFrame(container, {
+      content: lines(20),
+      plugins: [blockWidgetPlugin(() => 100, 0.25)],
+      virtualization: { estimateParagraphHeight: 20, overscan: 0 },
+    });
+
+    const mirror = editor.attachRenderMirror(mirrorElement);
+
+    expect(editor.getScrollState().scrollHeight).toBe(480);
+
+    mirror.destroy();
+    editor.destroy();
+    container.remove();
+    mirrorWrapper.remove();
+  });
+
   it("refreshes virtual geometry when mirror widgets resize", async () => {
     const callbacks: ResizeObserverCallback[] = [];
     const OriginalResizeObserver = globalThis.ResizeObserver;

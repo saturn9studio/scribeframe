@@ -299,6 +299,108 @@ describe("editor cursor and selection behavior", () => {
     }
   });
 
+  it("does not skip an adjacent paragraph when hit testing lands farther away", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ScribeFrame(container, {
+      content: "large line\n\nbody",
+    });
+    const caretDocument = document as CaretPositionDocument;
+    const originalCaretPositionFromPoint = caretDocument.caretPositionFromPoint;
+    const originalRangeRect = Range.prototype.getBoundingClientRect;
+    Range.prototype.getBoundingClientRect = function () {
+      return rect(this.startOffset * 10, 0, 32);
+    };
+    vi.spyOn(window, "getComputedStyle").mockReturnValue({
+      direction: "ltr",
+      lineHeight: "64px",
+      textIndent: "0px",
+    } as CSSStyleDeclaration);
+    caretDocument.caretPositionFromPoint = () => ({
+      offsetNode: textNodeContaining(container, "body"),
+      offset: 2,
+    });
+
+    try {
+      setSelection(
+        editor,
+        { paragraph: 0, offset: 5 },
+        { paragraph: 0, offset: 5 },
+      );
+      keyDown(container, "ArrowDown");
+
+      expect(editor.getSelection()).toEqual({
+        anchor: { paragraph: 1, offset: 0 },
+        head: { paragraph: 1, offset: 0 },
+      });
+    } finally {
+      caretDocument.caretPositionFromPoint = originalCaretPositionFromPoint;
+      if (originalRangeRect) {
+        Range.prototype.getBoundingClientRect = originalRangeRect;
+      } else {
+        delete (Range.prototype as Partial<Range>).getBoundingClientRect;
+      }
+      editor.destroy();
+      container.remove();
+    }
+  });
+
+  it("targets the edge visual line when entering an adjacent wrapped paragraph", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ScribeFrame(container, {
+      content: "large line\nwrapped paragraph",
+    });
+    setSelection(
+      editor,
+      { paragraph: 0, offset: 5 },
+      { paragraph: 0, offset: 5 },
+    );
+    const paragraphs = container.querySelectorAll<HTMLElement>(".s9-paragraph");
+    const heading = paragraphs[0];
+    const wrapped = paragraphs[1];
+    if (!heading || !wrapped) throw new Error("Paragraphs not found");
+    heading.getBoundingClientRect = () => box(0, 0, 200, 64);
+    wrapped.getBoundingClientRect = () => box(0, 64, 200, 60);
+
+    const caretDocument = document as CaretPositionDocument;
+    const originalCaretPositionFromPoint = caretDocument.caretPositionFromPoint;
+    const originalRangeRect = Range.prototype.getBoundingClientRect;
+    Range.prototype.getBoundingClientRect = function () {
+      return rect(this.startOffset * 10, 0, 32);
+    };
+    vi.spyOn(window, "getComputedStyle").mockImplementation((element) => ({
+      direction: "ltr",
+      lineHeight:
+        element instanceof HTMLElement && element.dataset.paragraph === "0"
+          ? "64px"
+          : "20px",
+      textIndent: "0px",
+    } as CSSStyleDeclaration));
+    caretDocument.caretPositionFromPoint = (_x, y) => ({
+      offsetNode: textNodeContaining(container, "wrapped paragraph"),
+      offset: y < 78 ? 2 : 10,
+    });
+
+    try {
+      keyDown(container, "ArrowDown");
+
+      expect(editor.getSelection()).toEqual({
+        anchor: { paragraph: 1, offset: 2 },
+        head: { paragraph: 1, offset: 2 },
+      });
+    } finally {
+      caretDocument.caretPositionFromPoint = originalCaretPositionFromPoint;
+      if (originalRangeRect) {
+        Range.prototype.getBoundingClientRect = originalRangeRect;
+      } else {
+        delete (Range.prototype as Partial<Range>).getBoundingClientRect;
+      }
+      editor.destroy();
+      container.remove();
+    }
+  });
+
   it("clears the preferred vertical column when selecting a range explicitly", () => {
     const container = document.createElement("div");
     container.style.lineHeight = "20px";
