@@ -215,6 +215,16 @@ export const createRendererMeasurements = (): ResolvedRendererMeasurements => ({
 });
 
 const transformScaleY = (element: HTMLElement): number => {
+  const layoutHeight = element.offsetHeight;
+  const renderedHeight = element.getBoundingClientRect().height;
+  if (
+    layoutHeight > 0 &&
+    Number.isFinite(renderedHeight) &&
+    renderedHeight > 0
+  ) {
+    return renderedHeight / layoutHeight;
+  }
+
   const transform = getComputedStyle(element).transform;
   if (!transform || transform === "none") return 1;
 
@@ -899,7 +909,9 @@ export class Renderer {
 
     const clamped = clampPosition(input.doc, position);
     const index = this.currentIndex ?? buildRenderIndex(input);
-    const top = this.paragraphTop(index, clamped.paragraph);
+    const top =
+      this.documentTopInScrollContainer() +
+      this.paragraphTop(index, clamped.paragraph);
     const bottom = top + this.paragraphLayoutHeight(index, clamped.paragraph);
     this.revealVerticalRange(top, bottom, options);
     const measuredRange = this.measuredSelectionVerticalRange(clamped, clamped);
@@ -917,16 +929,16 @@ export class Renderer {
       head: clampPosition(input.doc, selection.head),
     });
     const index = this.currentIndex ?? buildRenderIndex(input);
-    const top = this.paragraphTop(index, range.from.paragraph);
+    const documentTop = this.documentTopInScrollContainer();
+    const top = documentTop + this.paragraphTop(index, range.from.paragraph);
     const bottom =
+      documentTop +
       this.paragraphTop(index, range.to.paragraph) +
       this.paragraphLayoutHeight(index, range.to.paragraph);
     this.revealVerticalRange(top, bottom, options);
-    if (range.from.paragraph === range.to.paragraph) {
-      const measuredRange = this.measuredSelectionVerticalRange(range.from, range.to);
-      if (measuredRange) {
-        this.revealVerticalRange(measuredRange.top, measuredRange.bottom, options);
-      }
+    const measuredRange = this.measuredSelectionVerticalRange(range.from, range.to);
+    if (measuredRange) {
+      this.revealVerticalRange(measuredRange.top, measuredRange.bottom, options);
     }
   }
 
@@ -1104,9 +1116,14 @@ export class Renderer {
     const paragraphElement = this.paragraphElement(clamped.paragraph);
     if (rect && paragraphElement) {
       const paragraphRect = paragraphElement.getBoundingClientRect();
-      const x = boundary === "start"
+      const direction = getComputedStyle(paragraphElement).direction;
+      const lineStart = direction === "rtl"
+        ? paragraphRect.right - 1
+        : paragraphRect.left + 1;
+      const lineEnd = direction === "rtl"
         ? paragraphRect.left + 1
         : paragraphRect.right - 1;
+      const x = boundary === "start" ? lineStart : lineEnd;
       const target = this.positionAtPoint(x, rect.top + rect.height / 2);
       if (target?.paragraph === clamped.paragraph) return target;
     }
@@ -1132,11 +1149,13 @@ export class Renderer {
       };
     }
 
+    const documentTop = this.documentTopInScrollContainer();
+    const documentScrollTop = this.scrollContainer.scrollTop - documentTop;
     const overscanPixels =
       this.virtualization.overscan * this.virtualization.estimateParagraphHeight;
-    const visibleTop = Math.max(0, this.scrollContainer.scrollTop - overscanPixels);
+    const visibleTop = Math.max(0, documentScrollTop - overscanPixels);
     const visibleBottom =
-      this.scrollContainer.scrollTop + clientHeight + overscanPixels;
+      documentScrollTop + clientHeight + overscanPixels;
 
     let from = 0;
     let beforeHeight = 0;
@@ -1211,7 +1230,11 @@ export class Renderer {
         const key = widgetElement.dataset.widgetKey as WidgetKey | undefined;
         const rect = widgetElement.getBoundingClientRect();
         if (key && rect.height > 0) {
-          const layoutHeight = rect.height / scaleY;
+          const style = getComputedStyle(widgetElement);
+          const marginTop = Number.parseFloat(style.marginTop) || 0;
+          const marginBottom = Number.parseFloat(style.marginBottom) || 0;
+          const layoutHeight =
+            rect.height / scaleY + marginTop + marginBottom;
           if (blockWidgetHeights.get(key) !== layoutHeight) {
             blockWidgetHeights.set(key, layoutHeight);
             changed = true;
@@ -1295,7 +1318,8 @@ export class Renderer {
 
   private scrollHeight(): number {
     const virtualHeight = this.currentInput
-      ? this.documentHeight(
+      ? this.documentTopInScrollContainer() +
+        this.documentHeight(
           this.currentInput.doc,
           this.currentIndex ?? buildRenderIndex(this.currentInput),
         )
@@ -1360,6 +1384,14 @@ export class Renderer {
       top: Math.min(fromRect.top, toRect.top) - viewportRect.top + scrollTop,
       bottom: Math.max(fromRect.bottom, toRect.bottom) - viewportRect.top + scrollTop,
     };
+  }
+
+  private documentTopInScrollContainer(): number {
+    if (this.scrollContainer === this.root) return 0;
+
+    const rootRect = this.root.getBoundingClientRect();
+    const viewportRect = this.scrollContainer.getBoundingClientRect();
+    return rootRect.top - viewportRect.top + this.scrollContainer.scrollTop;
   }
 
   private comfortScrollTop(
