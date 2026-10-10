@@ -836,6 +836,108 @@ test("triple-clicking text selects the paragraph for replacement", async ({
   );
 });
 
+test("dragging selection beyond the viewport auto-scrolls", async ({ page }) => {
+  await page.evaluate(() => {
+    const { ScribeFrame } = (
+      globalThis as typeof globalThis & {
+        __SCRIBEFRAME_TEST_API__?: {
+          readonly ScribeFrame: new (
+            host: HTMLElement,
+            options: Record<string, unknown>,
+          ) => unknown;
+        };
+      }
+    ).__SCRIBEFRAME_TEST_API__ ?? {};
+    if (!ScribeFrame) {
+      throw new Error("Scribeframe browser test API is unavailable");
+    }
+
+    const host = document.createElement("div");
+    host.dataset.role = "drag-scroll-editor";
+    host.style.height = "180px";
+    host.style.position = "fixed";
+    host.style.top = "0";
+    host.style.width = "480px";
+    host.style.zIndex = "100";
+    document.body.append(host);
+    new ScribeFrame(host, {
+      content: Array.from(
+        { length: 80 },
+        (_, index) => `Paragraph ${index}`,
+      ).join("\n"),
+    });
+  });
+
+  const host = page.locator("[data-role='drag-scroll-editor']");
+  const drag = await host.evaluate((element) => {
+    const hostRect = element.getBoundingClientRect();
+    const paragraph = [...element.querySelectorAll<HTMLElement>(".s9-paragraph")]
+      .find((candidate) => {
+        const rect = candidate.getBoundingClientRect();
+        return rect.top >= hostRect.top && rect.bottom <= hostRect.bottom;
+      });
+    if (!paragraph) throw new Error("Visible drag paragraph is unavailable");
+    const range = document.createRange();
+    range.selectNodeContents(paragraph);
+    const textRect = range.getBoundingClientRect();
+    return {
+      endY: hostRect.bottom + 48,
+      startX: textRect.left + 2,
+      startY: textRect.top + textRect.height / 2,
+    };
+  });
+
+  await page.mouse.move(drag.startX, drag.startY);
+  await page.mouse.down();
+  await page.mouse.move(drag.startX, drag.endY, { steps: 6 });
+  await page.waitForTimeout(100);
+
+  expect(await host.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+
+  await page.mouse.up();
+  const stoppedScrollTop = await host.evaluate((element) => element.scrollTop);
+  await page.waitForTimeout(50);
+  expect(await host.evaluate((element) => element.scrollTop)).toBe(
+    stoppedScrollTop,
+  );
+
+  await host.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+    element.dispatchEvent(new Event("scroll"));
+  });
+  await page.waitForTimeout(50);
+  const upwardDrag = await host.evaluate((element) => {
+    const hostRect = element.getBoundingClientRect();
+    const paragraph = [...element.querySelectorAll<HTMLElement>(".s9-paragraph")]
+      .reverse()
+      .find((candidate) => {
+        const rect = candidate.getBoundingClientRect();
+        return rect.top >= hostRect.top && rect.bottom <= hostRect.bottom;
+      });
+    if (!paragraph) throw new Error("Visible upward drag paragraph is unavailable");
+    const range = document.createRange();
+    range.selectNodeContents(paragraph);
+    const textRect = range.getBoundingClientRect();
+    return {
+      endY: hostRect.top - 48,
+      startX: textRect.left + 2,
+      startY: textRect.top + textRect.height / 2,
+    };
+  });
+  const bottomScrollTop = await host.evaluate((element) => element.scrollTop);
+
+  await page.mouse.move(upwardDrag.startX, upwardDrag.startY);
+  await page.mouse.down();
+  await page.mouse.move(upwardDrag.startX, upwardDrag.endY, { steps: 6 });
+  await page.waitForTimeout(100);
+
+  expect(await host.evaluate((element) => element.scrollTop)).toBeLessThan(
+    bottomScrollTop,
+  );
+
+  await page.mouse.up();
+});
+
 test("mobile layout stacks document output below the editor", async ({
   page,
 }) => {

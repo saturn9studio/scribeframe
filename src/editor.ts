@@ -52,7 +52,9 @@ import {
 import type {
   EditorInteraction,
   EditorInteractionModifiers,
+  EditorInteractionTarget,
   EditorInteractionType,
+  RenderedInteractionHit,
 } from "./interaction.js";
 import {
   emptySyntaxProvider,
@@ -104,9 +106,40 @@ type TextGranularity = "grapheme" | "word";
 interface InteractionPress {
   readonly x: number;
   readonly y: number;
+  readonly targetIds: readonly string[];
 }
 
 const activationMovementTolerance = 4;
+
+const interactionTargetIdentity = (target: EditorInteractionTarget): string => {
+  if (target.kind === "widget") return JSON.stringify(["widget", target.key]);
+
+  const attrs = Object.entries(target.decoration.attrs)
+    .sort(([left], [right]) => left.localeCompare(right));
+  return JSON.stringify([
+    "decoration",
+    target.decoration.kind,
+    [target.range.from.paragraph, target.range.from.offset],
+    [target.range.to.paragraph, target.range.to.offset],
+    attrs,
+  ]);
+};
+
+const matchingInteractionHit = (
+  hit: RenderedInteractionHit,
+  targetIds: readonly string[],
+): RenderedInteractionHit => {
+  const accepted = new Set(targetIds);
+  const targets = hit.targets.filter((target) =>
+    accepted.has(interactionTargetIdentity(target))
+  );
+  return {
+    position: hit.position,
+    targets,
+    decorations: targets.filter((target) => target.kind === "decoration"),
+    widgets: targets.filter((target) => target.kind === "widget"),
+  };
+};
 
 const beforeInputMutations = new Set([
   "deleteContentBackward",
@@ -203,6 +236,9 @@ export class ScribeFrame {
   private committedCompositionText = "";
   private destroyed = false;
   private selectionDragAnchor: Position | null = null;
+  private selectionDragPoint: { readonly x: number; readonly y: number } | null =
+    null;
+  private selectionDragFrame: number | null = null;
   private interactionPress: InteractionPress | null = null;
   private preferredSelectionX: number | null = null;
   private measurementRenderFrame: number | null = null;
@@ -217,26 +253,58 @@ export class ScribeFrame {
 
   private readonly handleSelectionDragMove = (event: MouseEvent): void => {
     if (!this.selectionDragAnchor) return;
+    if ((event.buttons & 1) === 0) {
+      this.handleSelectionDragEnd();
+      this.clearInteractionPress();
+      return;
+    }
 
-    const position = this.renderer.positionAtPoint(event.clientX, event.clientY);
-    if (!position) return;
-
-    this.dispatch(
-      createTransaction(this.doc, this.selection)
-        .setSelection({
-          anchor: this.selectionDragAnchor,
-          head: position,
-        })
-        .build(),
-    );
+    this.selectionDragPoint = { x: event.clientX, y: event.clientY };
+    this.updateSelectionDrag();
     event.preventDefault();
   };
 
   private readonly handleSelectionDragEnd = (): void => {
     this.selectionDragAnchor = null;
+    this.selectionDragPoint = null;
+    if (this.selectionDragFrame !== null) {
+      cancelAnimationFrame(this.selectionDragFrame);
+      this.selectionDragFrame = null;
+    }
     document.removeEventListener("mousemove", this.handleSelectionDragMove);
     document.removeEventListener("mouseup", this.handleSelectionDragEnd);
   };
+
+  private updateSelectionDrag(): void {
+    const anchor = this.selectionDragAnchor;
+    const point = this.selectionDragPoint;
+    if (!anchor || !point) return;
+
+    const target = this.renderer.selectionDragTargetAtPoint(point.x, point.y);
+    if (
+      target.position &&
+      (
+        !isSamePosition(this.selection.anchor, anchor) ||
+        !isSamePosition(this.selection.head, target.position)
+      )
+    ) {
+      this.dispatch(
+        createTransaction(this.doc, this.selection)
+          .setSelection({
+            anchor,
+            head: target.position,
+          })
+          .build(),
+      );
+    }
+
+    if (target.scrolling && this.selectionDragFrame === null) {
+      this.selectionDragFrame = requestAnimationFrame(() => {
+        this.selectionDragFrame = null;
+        this.updateSelectionDrag();
+      });
+    }
+  }
 
   private readonly handleInteractionMouseUp = (event: MouseEvent): void => {
     const press = this.interactionPress;
@@ -248,13 +316,20 @@ export class ScribeFrame {
     ) {
       return;
     }
+    if (
+      this.selectionDragAnchor !== null &&
+      !selectionIsCollapsed(this.selection)
+    ) {
+      return;
+    }
 
-    this.handleInteraction("activate", event);
+    this.handleInteraction("activate", event, press.targetIds);
   };
 
   private readonly handleContainerMouseDown = (event: MouseEvent): void => {
     if (this.destroyed) return;
     if (event.button !== 0) return;
+    this.handleSelectionDragEnd();
     this.captureInteractionPress(event);
     const target = event.target;
     if (target instanceof HTMLElement && target.closest(".s9-widget")) return;
@@ -783,6 +858,9 @@ export class ScribeFrame {
     this.interactionPress = {
       x: event.clientX,
       y: event.clientY,
+      targetIds: this.renderer
+        .interactionAtPoint(event.clientX, event.clientY)
+        .targets.map(interactionTargetIdentity),
     };
     document.addEventListener("mouseup", this.handleInteractionMouseUp);
   }
@@ -795,8 +873,12 @@ export class ScribeFrame {
   private handleInteraction(
     type: EditorInteractionType,
     event: MouseEvent,
+    targetIds: readonly string[],
   ): boolean {
-    const hit = this.renderer.interactionAtPoint(event.clientX, event.clientY);
+    const hit = matchingInteractionHit(
+      this.renderer.interactionAtPoint(event.clientX, event.clientY),
+      targetIds,
+    );
     if (hit.targets.length === 0) return false;
 
     const interaction: EditorInteraction = {

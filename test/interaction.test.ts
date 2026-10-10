@@ -8,8 +8,18 @@ import {
   type EditorInteraction,
 } from "../src";
 
+type CaretPositionDocument = Document & {
+  caretPositionFromPoint?: (
+    x: number,
+    y: number,
+  ) => { offsetNode: Node; offset: number } | null;
+};
+
 const originalElementsFromPoint = document.elementsFromPoint;
 const originalElementFromPoint = document.elementFromPoint;
+const originalCaretPositionFromPoint = (
+  document as CaretPositionDocument
+).caretPositionFromPoint;
 
 const stubPointLookup = (element: () => Element | null): void => {
   Object.defineProperty(document, "elementsFromPoint", {
@@ -34,6 +44,18 @@ const restorePointLookup = (): void => {
     configurable: true,
     value: originalElementFromPoint,
   });
+  (document as CaretPositionDocument).caretPositionFromPoint =
+    originalCaretPositionFromPoint;
+};
+
+const textNodeContaining = (container: HTMLElement, text: string): Text => {
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  let node = walker.nextNode();
+  while (node) {
+    if (node.textContent === text) return node as Text;
+    node = walker.nextNode();
+  }
+  throw new Error(`Text node not found: ${text}`);
 };
 
 const interactionPlugin = (
@@ -183,6 +205,100 @@ describe("editor interactions", () => {
     expect(decorated).not.toBeNull();
     dispatchActivation(decorated!, { shiftKey: true });
 
+    expect(interactions).toEqual([]);
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("does not activate a target that was only under the release point", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const interactions: EditorInteraction[] = [];
+    const editor = new ScribeFrame(container, {
+      content: "hello",
+      plugins: [interactionPlugin(interactions)],
+    });
+    let pointTarget: Element | null = null;
+    stubPointLookup(() => pointTarget);
+
+    container.dispatchEvent(
+      new MouseEvent("mousedown", {
+        bubbles: true,
+        button: 0,
+        cancelable: true,
+        clientX: 1,
+        clientY: 1,
+        detail: 1,
+      }),
+    );
+    pointTarget = container.querySelector(".interactive");
+    document.dispatchEvent(
+      new MouseEvent("mouseup", {
+        bubbles: true,
+        button: 0,
+        cancelable: true,
+        clientX: 2,
+        clientY: 1,
+        detail: 1,
+      }),
+    );
+
+    expect(interactions).toEqual([]);
+
+    editor.destroy();
+    container.remove();
+  });
+
+  it("does not activate a decoration after a drag creates a selection", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const interactions: EditorInteraction[] = [];
+    const editor = new ScribeFrame(container, {
+      content: "hello",
+      plugins: [interactionPlugin(interactions)],
+    });
+    stubPointLookup(() => container.querySelector(".interactive"));
+    (document as CaretPositionDocument).caretPositionFromPoint = (x) => ({
+      offsetNode: textNodeContaining(container, "hello"),
+      offset: Math.max(0, Math.min(5, Math.round(x))),
+    });
+
+    const decorated = container.querySelector(".interactive");
+    expect(decorated).not.toBeNull();
+    decorated?.dispatchEvent(
+      new MouseEvent("mousedown", {
+        bubbles: true,
+        button: 0,
+        cancelable: true,
+        clientX: 1,
+        clientY: 1,
+        detail: 1,
+      }),
+    );
+    document.dispatchEvent(
+      new MouseEvent("mousemove", {
+        bubbles: true,
+        buttons: 1,
+        clientX: 3,
+        clientY: 1,
+      }),
+    );
+    document.dispatchEvent(
+      new MouseEvent("mouseup", {
+        bubbles: true,
+        button: 0,
+        cancelable: true,
+        clientX: 3,
+        clientY: 1,
+        detail: 1,
+      }),
+    );
+
+    expect(editor.getSelection()).toEqual({
+      anchor: { paragraph: 0, offset: 1 },
+      head: { paragraph: 0, offset: 3 },
+    });
     expect(interactions).toEqual([]);
 
     editor.destroy();

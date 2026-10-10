@@ -120,6 +120,9 @@ type ViewportAnchor =
       readonly offsetTop: number;
     };
 
+    const selectionDragEdgeSize = 32;
+    const selectionDragMaxScrollStep = 24;
+
 const rectWithHorizontalPosition = (
   rect: DOMRect,
   left: number,
@@ -185,6 +188,11 @@ export interface RendererScrollState {
   readonly fraction: number;
   readonly documentTopFraction: number;
   readonly viewportFraction: number;
+}
+
+export interface SelectionDragTarget {
+  readonly position: Position | null;
+  readonly scrolling: boolean;
 }
 
 export interface RendererOptions {
@@ -831,6 +839,46 @@ export class Renderer {
     return {
       paragraph: segment.paragraph,
       offset: Math.min(segment.to, segment.from + caret.offset),
+    };
+  }
+
+  selectionDragTargetAtPoint(x: number, y: number): SelectionDragTarget {
+    const viewportRect = this.scrollContainer.getBoundingClientRect();
+    const edgeSize = Math.min(
+      selectionDragEdgeSize,
+      Math.max(0, viewportRect.height / 4),
+    );
+    let scrollDelta = 0;
+    if (y < viewportRect.top + edgeSize) {
+      scrollDelta = -Math.min(
+        selectionDragMaxScrollStep,
+        Math.max(1, Math.ceil(viewportRect.top + edgeSize - y)),
+      );
+    } else if (y > viewportRect.bottom - edgeSize) {
+      scrollDelta = Math.min(
+        selectionDragMaxScrollStep,
+        Math.max(1, Math.ceil(y - (viewportRect.bottom - edgeSize))),
+      );
+    }
+
+    const scrollTop = this.scrollContainer.scrollTop;
+    if (scrollDelta !== 0) {
+      this.setScrollTop(scrollTop + scrollDelta);
+    }
+    const scrolling = this.scrollContainer.scrollTop !== scrollTop;
+    const rootRect = this.root.getBoundingClientRect();
+    const clampedX = rootRect.width > 2
+      ? Math.max(rootRect.left + 1, Math.min(x, rootRect.right - 1))
+      : x;
+    const visibleTop = Math.max(rootRect.top, viewportRect.top);
+    const visibleBottom = Math.min(rootRect.bottom, viewportRect.bottom);
+    const clampedY = visibleBottom - visibleTop > 2
+      ? Math.max(visibleTop + 1, Math.min(y, visibleBottom - 1))
+      : y;
+
+    return {
+      position: this.positionAtPoint(clampedX, clampedY),
+      scrolling,
     };
   }
 

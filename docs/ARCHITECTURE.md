@@ -122,7 +122,10 @@ plus rendered decoration and widget targets under the pointer. Targets expose
 their public decoration/widget descriptions and ranges only; the core does not
 interpret classes, attributes, Markdown syntax, or application policy. Adapter
 layers such as Scribe can map those generic targets to semantic actions like
-opening Markdown links.
+opening Markdown links. Activation requires the same semantic target at press
+and release, and a drag that creates a selection never activates its target.
+Losing the primary button cancels the drag instead of leaving stale selection
+listeners active.
 
 ## Reveal and scroll geometry
 
@@ -222,6 +225,9 @@ are mounted only while their covered paragraph is in the rendered window, and
 the same renderer-owned lifecycle destroys offscreen widget hosts. If the
 focused widget virtualizes out, focus returns to the editor input proxy because
 the focused widget DOM is no longer live.
+Pointer selection autoscrolls in either direction while the drag remains near
+or beyond a viewport edge, clamps hit-testing to visible editor content, and
+stops its animation frame when the gesture ends.
 
 Performance-sensitive editor paths avoid deriving whole-document text from the
 paragraph model during ordinary operation. `ScribeFrame` keeps a cached display
