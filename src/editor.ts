@@ -576,12 +576,25 @@ export class ScribeFrame {
   }
 
   private focusInputProxy(): void {
+    const preserveScroll = this.readOnly;
+    const scrollContainer = this.options.scrollContainer ?? this.container;
+    const scrollTop = scrollContainer.scrollTop;
+    const scrollLeft = scrollContainer.scrollLeft;
     if (this.textarea.ownerDocument.activeElement === this.textarea) {
       this.textarea.blur();
     }
 
     this.textarea.focus({ preventScroll: true });
     this.renderer.syncInputProxy(this.textarea);
+    if (preserveScroll) {
+      const restoreScroll = (): void => {
+        scrollContainer.scrollTop = scrollTop;
+        scrollContainer.scrollLeft = scrollLeft;
+      };
+      restoreScroll();
+      // Chromium can apply a second read-only focus scroll before the next paint.
+      requestAnimationFrame(restoreScroll);
+    }
   }
 
   revealPosition(position: Position, options: EditorRevealOptions = {}): void {

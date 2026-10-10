@@ -134,6 +134,44 @@ describe("renderer accessibility", () => {
     other.remove();
   });
 
+  it("preserves read-only viewport scroll while focusing the input proxy", () => {
+    const container = document.createElement("div");
+    const other = document.createElement("button");
+    document.body.append(container, other);
+    const editor = new ScribeFrame(container, {
+      ariaLabel: "Read-only keyboard target",
+      content: "Body",
+      readOnly: true,
+    });
+    const input = inputFor(container);
+    const frameCallbacks: FrameRequestCallback[] = [];
+    vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation((callback) => {
+      frameCallbacks.push(callback);
+      return frameCallbacks.length;
+    });
+    vi.spyOn(input, "focus").mockImplementation(() => {
+      container.scrollTop = 203;
+      container.scrollLeft = 17;
+    });
+    container.scrollTop = 240;
+    container.scrollLeft = 30;
+    other.focus();
+
+    editor.focus();
+
+    expect(container.scrollTop).toBe(240);
+    expect(container.scrollLeft).toBe(30);
+    container.scrollTop = 203;
+    container.scrollLeft = 17;
+    frameCallbacks[0]?.(0);
+    expect(container.scrollTop).toBe(240);
+    expect(container.scrollLeft).toBe(30);
+
+    editor.destroy();
+    container.remove();
+    other.remove();
+  });
+
   it("marks the root only while the input proxy owns focus", () => {
     const container = document.createElement("div");
     const other = document.createElement("button");
