@@ -455,6 +455,148 @@ test("vertical movement does not skip empty paragraphs after tall line boxes", a
   });
 });
 
+test("vertical movement enters the edge line of adjacent wrapped paragraphs", async ({
+  page,
+}) => {
+  const modulePath =
+    `/@fs/${resolve("src/index.ts").replace(/\\/gu, "/")}`;
+  await page.addScriptTag({
+    type: "module",
+    content: `
+      import { PluginId, ScribeFrame } from ${JSON.stringify(modulePath)};
+      const host = document.createElement("div");
+      host.style.width = "300px";
+      const style = document.createElement("style");
+      style.textContent =
+        ".browser-test-tall-line { font-size: 32px; line-height: 4; }";
+      document.head.append(style);
+      document.body.replaceChildren(host);
+      const editor = new ScribeFrame(host, {
+        content:
+          "Large line\\n" +
+          "This adjacent paragraph wraps across several visual lines in the narrow editor.",
+        plugins: [{
+          id: new PluginId("browser-test-tall-wrapped-line"),
+          init: () => null,
+          apply: () => null,
+          decorations: () => [{
+            kind: "block",
+            paragraph: 0,
+            attrs: { class: "browser-test-tall-line" },
+          }],
+        }],
+        virtualization: false,
+      });
+      editor.selectRange({
+        from: { paragraph: 0, offset: 10 },
+        to: { paragraph: 0, offset: 10 },
+      });
+      editor.focus();
+      window.browserTestEditor = editor;
+      window.browserTestEditorHost = host;
+      window.browserTestEditorReady = true;
+    `,
+  });
+  await page.waitForFunction("window.browserTestEditorReady === true");
+
+  await page.keyboard.press("ArrowDown");
+
+  const geometry = await page.evaluate(() => {
+    const host = window.browserTestEditorHost;
+    const paragraph = host.querySelector<HTMLElement>(
+      ".s9-paragraph[data-paragraph='1']",
+    );
+    const caret = host.querySelector<HTMLElement>(".s9-caret");
+    if (!paragraph || !caret) throw new Error("Caret geometry unavailable");
+    const paragraphRect = paragraph.getBoundingClientRect();
+    const caretRect = caret.getBoundingClientRect();
+    const lineHeight = Number.parseFloat(getComputedStyle(paragraph).lineHeight);
+    return {
+      caretTop: caretRect.top,
+      lineHeight,
+      paragraphHeight: paragraphRect.height,
+      paragraphTop: paragraphRect.top,
+    };
+  });
+
+  expect(geometry.paragraphHeight).toBeGreaterThan(geometry.lineHeight * 1.5);
+  expect(geometry.caretTop - geometry.paragraphTop).toBeLessThan(
+    geometry.lineHeight / 2,
+  );
+});
+
+test("upward movement enters the last line of an adjacent wrapped paragraph", async ({
+  page,
+}) => {
+  const modulePath =
+    `/@fs/${resolve("src/index.ts").replace(/\\/gu, "/")}`;
+  await page.addScriptTag({
+    type: "module",
+    content: `
+      import { PluginId, ScribeFrame } from ${JSON.stringify(modulePath)};
+      const host = document.createElement("div");
+      host.style.width = "300px";
+      const style = document.createElement("style");
+      style.textContent =
+        ".browser-test-tall-line { font-size: 32px; line-height: 4; }";
+      document.head.append(style);
+      document.body.replaceChildren(host);
+      const editor = new ScribeFrame(host, {
+        content:
+          "This adjacent paragraph wraps across several visual lines in the narrow editor.\\n" +
+          "Large line",
+        plugins: [{
+          id: new PluginId("browser-test-upward-tall-wrapped-line"),
+          init: () => null,
+          apply: () => null,
+          decorations: () => [{
+            kind: "block",
+            paragraph: 1,
+            attrs: { class: "browser-test-tall-line" },
+          }],
+        }],
+        virtualization: false,
+      });
+      editor.selectRange({
+        from: { paragraph: 1, offset: 10 },
+        to: { paragraph: 1, offset: 10 },
+      });
+      editor.focus();
+      window.browserTestEditor = editor;
+      window.browserTestEditorHost = host;
+      window.browserTestEditorReady = true;
+    `,
+  });
+  await page.waitForFunction("window.browserTestEditorReady === true");
+
+  await page.keyboard.press("ArrowUp");
+
+  const geometry = await page.evaluate(() => {
+    const host = window.browserTestEditorHost;
+    const paragraph = host.querySelector<HTMLElement>(
+      ".s9-paragraph[data-paragraph='0']",
+    );
+    const caret = host.querySelector<HTMLElement>(".s9-caret");
+    if (!paragraph || !caret) throw new Error("Caret geometry unavailable");
+    const paragraphRect = paragraph.getBoundingClientRect();
+    const caretRect = caret.getBoundingClientRect();
+    const lineHeight = Number.parseFloat(getComputedStyle(paragraph).lineHeight);
+    return {
+      caretTop: caretRect.top,
+      lineHeight,
+      paragraphBottom: paragraphRect.bottom,
+      paragraphHeight: paragraphRect.height,
+      paragraphTop: paragraphRect.top,
+    };
+  });
+
+  expect(geometry.paragraphHeight).toBeGreaterThan(geometry.lineHeight * 1.5);
+  expect(geometry.caretTop - geometry.paragraphTop).toBeGreaterThan(
+    geometry.paragraphHeight - geometry.lineHeight * 1.5,
+  );
+  expect(geometry.caretTop).toBeLessThan(geometry.paragraphBottom);
+});
+
 test("structural edits invalidate shifted virtual paragraph measurements", async ({
   page,
 }) => {

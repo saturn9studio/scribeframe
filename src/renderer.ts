@@ -965,6 +965,7 @@ export class Renderer {
         input.doc,
         position,
         target,
+        x,
         targetY,
         direction,
       );
@@ -989,6 +990,7 @@ export class Renderer {
     doc: EditorDocument,
     position: Position,
     target: Position | null,
+    x: number,
     targetY: number,
     direction: -1 | 1,
   ): Position | null {
@@ -1003,7 +1005,40 @@ export class Renderer {
       ? this.fallbackVerticalPosition(doc, position, direction)
       : target;
 
-    return this.visibleVerticalPosition(candidate, direction);
+    return this.visibleVerticalPosition(
+      this.verticalTargetOnParagraphEdgeLine(
+        position,
+        candidate,
+        x,
+        direction,
+      ),
+      direction,
+    );
+  }
+
+  private verticalTargetOnParagraphEdgeLine(
+    position: Position,
+    target: Position,
+    x: number,
+    direction: -1 | 1,
+  ): Position {
+    if (target.paragraph === position.paragraph) return target;
+
+    const paragraphElement = this.paragraphElement(target.paragraph);
+    if (!paragraphElement) return target;
+
+    const rect = paragraphElement.getBoundingClientRect();
+    if (rect.height <= 0) return target;
+
+    const lineHeight = Math.min(
+      rect.height,
+      this.paragraphLineHeight(paragraphElement) ?? rect.height,
+    );
+    const y = direction > 0
+      ? rect.top + lineHeight / 2
+      : rect.bottom - lineHeight / 2;
+    const edgeTarget = this.positionAtPoint(x, y);
+    return edgeTarget?.paragraph === target.paragraph ? edgeTarget : target;
   }
 
   private verticalHitTestCrossedPastCurrentParagraph(
