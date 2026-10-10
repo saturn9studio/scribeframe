@@ -401,6 +401,55 @@ test("paragraph minimum height follows configured line height", async ({ page })
   expect(metrics.minHeight).toBeCloseTo(metrics.lineHeight, 1);
 });
 
+test("vertical movement does not skip empty paragraphs after tall line boxes", async ({
+  page,
+}) => {
+  const modulePath =
+    `/@fs/${resolve("src/index.ts").replace(/\\/gu, "/")}`;
+  await page.addScriptTag({
+    type: "module",
+    content: `
+      import { PluginId, ScribeFrame } from ${JSON.stringify(modulePath)};
+      const host = document.createElement("div");
+      const style = document.createElement("style");
+      style.textContent =
+        ".browser-test-tall-line { font-size: 32px; line-height: 4; }";
+      document.head.append(style);
+      document.body.replaceChildren(host);
+      const editor = new ScribeFrame(host, {
+        content: "Large line\\n\\nBody",
+        plugins: [{
+          id: new PluginId("browser-test-tall-line"),
+          init: () => null,
+          apply: () => null,
+          decorations: () => [{
+            kind: "block",
+            paragraph: 0,
+            attrs: { class: "browser-test-tall-line" },
+          }],
+        }],
+      });
+      editor.selectRange({
+        from: { paragraph: 0, offset: 10 },
+        to: { paragraph: 0, offset: 10 },
+      });
+      editor.focus();
+      window.browserTestEditor = editor;
+      window.browserTestEditorReady = true;
+    `,
+  });
+  await page.waitForFunction("window.browserTestEditorReady === true");
+
+  await page.keyboard.press("ArrowDown");
+
+  expect(
+    await page.evaluate("window.browserTestEditor.getSelection()"),
+  ).toEqual({
+    anchor: { paragraph: 1, offset: 0 },
+    head: { paragraph: 1, offset: 0 },
+  });
+});
+
 test("code block widget edits update document text", async ({ page }) => {
   const code = page.locator(".s9-code-widget-textarea");
 

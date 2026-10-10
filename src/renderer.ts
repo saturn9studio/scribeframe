@@ -1006,6 +1006,10 @@ export class Renderer {
       return true;
     }
 
+    if (Math.abs(target.paragraph - position.paragraph) > 1) {
+      return true;
+    }
+
     return this.verticalTargetStaysOnParagraphOutsideBounds(
       position,
       target,

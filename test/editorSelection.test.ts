@@ -299,6 +299,52 @@ describe("editor cursor and selection behavior", () => {
     }
   });
 
+  it("does not skip an adjacent paragraph when hit testing lands farther away", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ScribeFrame(container, {
+      content: "large line\n\nbody",
+    });
+    const caretDocument = document as CaretPositionDocument;
+    const originalCaretPositionFromPoint = caretDocument.caretPositionFromPoint;
+    const originalRangeRect = Range.prototype.getBoundingClientRect;
+    Range.prototype.getBoundingClientRect = function () {
+      return rect(this.startOffset * 10, 0, 32);
+    };
+    vi.spyOn(window, "getComputedStyle").mockReturnValue({
+      direction: "ltr",
+      lineHeight: "64px",
+      textIndent: "0px",
+    } as CSSStyleDeclaration);
+    caretDocument.caretPositionFromPoint = () => ({
+      offsetNode: textNodeContaining(container, "body"),
+      offset: 2,
+    });
+
+    try {
+      setSelection(
+        editor,
+        { paragraph: 0, offset: 5 },
+        { paragraph: 0, offset: 5 },
+      );
+      keyDown(container, "ArrowDown");
+
+      expect(editor.getSelection()).toEqual({
+        anchor: { paragraph: 1, offset: 0 },
+        head: { paragraph: 1, offset: 0 },
+      });
+    } finally {
+      caretDocument.caretPositionFromPoint = originalCaretPositionFromPoint;
+      if (originalRangeRect) {
+        Range.prototype.getBoundingClientRect = originalRangeRect;
+      } else {
+        delete (Range.prototype as Partial<Range>).getBoundingClientRect;
+      }
+      editor.destroy();
+      container.remove();
+    }
+  });
+
   it("clears the preferred vertical column when selecting a range explicitly", () => {
     const container = document.createElement("div");
     container.style.lineHeight = "20px";
