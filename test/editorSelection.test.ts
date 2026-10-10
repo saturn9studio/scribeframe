@@ -821,4 +821,42 @@ describe("editor cursor and selection behavior", () => {
     editor.destroy();
     container.remove();
   });
+
+  it("keeps the focused read-only input proxy stationary during pointer drag", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const editor = new ScribeFrame(container, {
+      content: "abcdef",
+      readOnly: true,
+    });
+    const input = inputFor(container);
+    const caretDocument = document as CaretPositionDocument;
+    const originalCaretPositionFromPoint = caretDocument.caretPositionFromPoint;
+    caretDocument.caretPositionFromPoint = (x) => ({
+      offsetNode: textNodeContaining(container, "abcdef"),
+      offset: Math.max(0, Math.min(6, Math.round(x))),
+    });
+    editor.focus();
+    input.style.left = "91px";
+    input.style.top = "123px";
+
+    container.dispatchEvent(
+      new MouseEvent("mousedown", { button: 0, clientX: 1, bubbles: true }),
+    );
+    document.dispatchEvent(
+      new MouseEvent("mousemove", { button: 0, clientX: 4, bubbles: true }),
+    );
+    document.dispatchEvent(new MouseEvent("mouseup", { button: 0, bubbles: true }));
+
+    expect(editor.getSelection()).toEqual({
+      anchor: { paragraph: 0, offset: 1 },
+      head: { paragraph: 0, offset: 4 },
+    });
+    expect(input.style.left).toBe("91px");
+    expect(input.style.top).toBe("123px");
+
+    caretDocument.caretPositionFromPoint = originalCaretPositionFromPoint;
+    editor.destroy();
+    container.remove();
+  });
 });

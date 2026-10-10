@@ -853,6 +853,13 @@ export class Renderer {
   }
 
   syncInputProxy(textarea: HTMLTextAreaElement): void {
+    if (
+      this.currentInput?.readOnly &&
+      textarea.ownerDocument.activeElement === textarea
+    ) {
+      return;
+    }
+
     const rect = this.measurePosition(
       this.currentInput?.selection.head ?? { paragraph: 0, offset: 0 },
     );
